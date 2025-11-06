@@ -370,33 +370,6 @@ function ttx_delete(string $path, array $query = [], array $headers = []) { retu
 /** -------------------------------------------------------------------------
  * Customers
  * -------------------------------------------------------------------------- */
-/**
- * Find a customer by orgnr (exact match). Returns first match.
- *
- * @return array|null|\WP_Error
- */
-function ttx_customers_find_by_orgnr(string $orgnr, array $fields = ['id','name','organizationNumber','version']) {
-    $orgnr = preg_replace('/\D+/', '', $orgnr);
-    if ($orgnr === '') {
-        return ttx_error('orgnr_invalid', __('Ugyldig organisasjonsnummer.', 'lh-ttx'));
-    }
-
-    $res = ttx_get('/customer', [
-        'organizationNumber' => $orgnr,     // Tripletex search-by-field
-        'count'              => 1,
-        'page'               => 0,
-        'fields'             => ttx_normalize_fields($fields),
-    ]);
-
-    if (is_wp_error($res)) return $res;
-
-    // $res is normalized; for search, Tripletex typically returns a list
-    if (is_array($res) && isset($res[0])) return $res[0];
-    if (is_array($res) && empty($res)) return null;
-
-    // Some stacks might return envelope as {values: []} then unwrapped by ttx_unwrap
-    return null;
-}
 
 /**
  * Create customer, returning new id.
