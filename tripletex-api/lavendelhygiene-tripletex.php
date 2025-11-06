@@ -3,7 +3,7 @@
  * Plugin Name: LavendelHygiene Tripletex
  * Description: Tripletex integration for customers, products, and orders
  * Author: Kevin Nikolai Mathisen
- * Version: 0.1.0
+ * Version: 0.2.0
  * Requires Plugins: woocommerce
  * 
  * TODO: test, use SKU as tripletex ID, test webhook, add user text/extra info to tripletex order
@@ -13,7 +13,7 @@
 if (!defined('ABSPATH')) exit;
 
 
-define('LH_TTX_VERSION',          '0.1.0');
+define('LH_TTX_VERSION',          '0.2.0');
 define('LH_TTX_PLUGIN_FILE',      __FILE__);
 define('LH_TTX_PLUGIN_BASENAME',  plugin_basename(__FILE__));
 define('LH_TTX_PLUGIN_DIR',       plugin_dir_path(__FILE__));
@@ -130,7 +130,7 @@ add_action('plugins_loaded', function () {
 
     (new LH_Ttx_Webhooks())->init();
 
-    // Plugin action link: Settings
+    // Add "settings" link to plugin row on plugin page
     add_filter('plugin_action_links_' . LH_TTX_PLUGIN_BASENAME, function ($links) {
         $url = admin_url('admin.php?page=lh-ttx-settings');
         array_unshift($links, '<a href="'.esc_url($url).'">'.esc_html__('Settings', 'lh-ttx').'</a>');
@@ -139,7 +139,7 @@ add_action('plugins_loaded', function () {
 });
 
 /**
- * WooCommerce hook wiring (simple, focused)
+ * WooCommerce hook wiring
  */
 final class LH_Ttx_Woo_Hooks {
     private LH_Ttx_Service_Registry $svc;
@@ -172,7 +172,7 @@ final class LH_Ttx_Woo_Hooks {
             $order->add_order_note(__('Tripletex: Failed to create remote order. Please contact customer and try again.', 'lh-ttx'));
 
             // Frontend notice (only if checkout still has a session context)
-            wc_add_notice(__('Vi kunne ikke opprette ordre i økonomisystemet. Bestillingen er registrert hos oss, men vennligst kontakt kundeservice.', 'lh-ttx'), 'error');
+            wc_add_notice(__('Det skjedde en feil i prosesseringen av orderen din. Vennligst kontakt oss.', 'lh-ttx'), 'error');
         }
     }
 
@@ -185,7 +185,6 @@ final class LH_Ttx_Woo_Hooks {
                 'user_id' => $user_id,
                 'error'   => $res->get_error_message(),
             ]);
-            // Optional: store a transient to show an admin notice next page load
         }
     }
 
@@ -202,7 +201,7 @@ final class LH_Ttx_Woo_Hooks {
 }
 
 /**
- * Admin Applications hooks (handlers only; your Core plugin renders the buttons/forms)
+ * Admin Applications hooks
  */
 final class LH_Ttx_Admin_Applications_Hooks {
     private LH_Ttx_Service_Registry $svc;
@@ -213,12 +212,11 @@ final class LH_Ttx_Admin_Applications_Hooks {
         add_action('admin_post_lavendelhygiene_create_tripletex', [$this, 'handle_create_in_tripletex']);
     }
 
-    /** Capability gate for app actions */
     private function can_manage(): bool {
         return current_user_can('manage_woocommerce') || current_user_can('promote_users') || current_user_can('list_users');
     }
 
-    /** Non-AJAX: Create in Tripletex and link */
+    /** Create customer in Tripletex and link local customer to this tripletex id */
     public function handle_create_in_tripletex(): void {
         if (!$this->can_manage()) wp_die(__('No permission.', 'lh-ttx'));
 
@@ -240,11 +238,6 @@ final class LH_Ttx_Admin_Applications_Hooks {
 
 /**
  * Service registry
- *
- * Expected public methods:
- *  - customers(): LH_Ttx_Customers_Service
- *  - orders():    LH_Ttx_Orders_Service
- *  - products():  LH_Ttx_Products_Service
  */
 final class LH_Ttx_Service_Registry {
     private static ?self $instance = null;
