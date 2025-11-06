@@ -76,7 +76,7 @@ final class LavendelHygiene_Core {
     }
 }
 
-/* ---------- Services ---------- */
+/* ---------- Service for setting local tripletex id for users ---------- */
 
 class LavendelHygiene_TripletexLinkingService {
     public function get_ttx_id( int $user_id ): string {
@@ -131,7 +131,7 @@ class LavendelHygiene_TripletexLinkingService {
 
 }
 
-/* ---------- Admin: Applications screen ---------- */
+/* ---------- Admin: Approve/deny/create tripletex user page ---------- */
 
 class LavendelHygiene_AdminApplications {
     public function __construct() {
@@ -309,7 +309,7 @@ class LavendelHygiene_AdminApplications {
 
 }
 
-/* ---------- User profile fields ---------- */
+/* ---------- Admin: Users page + user edit page ---------- */
 
 class LavendelHygiene_ProfileFields {
     public function __construct() {
@@ -696,7 +696,7 @@ class LavendelHygiene_Gating {
                 if ( ! is_user_logged_in() ) {
                     wc_add_notice( __( 'Du må logge inn for å se priser og handle.', 'lavendelhygiene' ), 'notice' );
                 } else {
-                    wc_add_notice( __( 'Konto må bli godkjent for å se priser og handle, kontakt oss ved spørsmål!', 'lavendelhygiene' ), 'notice' );
+                    wc_add_notice( __( 'Konto må bli godkjent for å se priser og handle, kontakt oss ved spørsmål.', 'lavendelhygiene' ), 'notice' );
                 }
                 wp_safe_redirect( wc_get_page_permalink( 'myaccount' ) );
                 exit;
@@ -739,7 +739,7 @@ class LavendelHygiene_Notifications {
         if ( ! $is_woo_registration ) return;
 
         // Internal notification
-        $admin_to      = get_option( 'admin_email' );
+        $admin_to      = get_option( 'admin_email' ); // TODO: send to correct email here. 
         $subject_admin = sprintf( __( 'Ny bedrift-registrering: %s', 'lavendelhygiene' ), $user->user_login );
         $body_admin    = sprintf(
             "Ny registrering venter godkjenning.\n\nBruker: %s\nE-post: %s\nSelskap: %s\nOrg.nr: %s\n",
