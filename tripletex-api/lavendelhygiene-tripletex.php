@@ -94,10 +94,10 @@ function lh_ttx_set_webhook_secret(string $val): void { lh_ttx_set_option(LH_TTX
 function lh_ttx_get_cached_session(): array {
     return [
         'token'   => (string) lh_ttx_get_option(LH_TTX_OPT_SESSION_TOKEN, ''),
-        'expires' => (int)    lh_ttx_get_option(LH_TTX_OPT_SESSION_EXPIRES, '2000-01-01'),
+        'expires' => (string)    lh_ttx_get_option(LH_TTX_OPT_SESSION_EXPIRES, '2000-01-01'),
     ];
 }
-function lh_ttx_set_cached_session(string $token, int $expiresStr): void {
+function lh_ttx_set_cached_session(string $token, string $expiresStr): void {
     lh_ttx_set_option(LH_TTX_OPT_SESSION_TOKEN, $token);
     lh_ttx_set_option(LH_TTX_OPT_SESSION_EXPIRES, $expiresStr);
 }

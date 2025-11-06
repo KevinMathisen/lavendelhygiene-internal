@@ -104,8 +104,10 @@ final class LH_Ttx_Settings_Page {
                 __('Test failed: %s', 'lh-ttx'), $token->get_error_message()
             ), 'error');
         } else {
-            $cache = lh_ttx_get_cached_session();
-            $exp   = !empty($cache['expires']) ? date_i18n(get_option('date_format').' '.get_option('time_format'), (int) $cache['expires']) : __('unknown', 'lh-ttx');
+            $cache  = lh_ttx_get_cached_session();
+            $expRaw = isset($cache['expires']) ? (string) $cache['expires'] : '';
+            $expTs  = $expRaw !== '' ? strtotime($expRaw) : false;
+            $exp    = $expTs ? date_i18n(get_option('date_format').' '.get_option('time_format'), $expTs) : __('unknown', 'lh-ttx');
             add_settings_error('lh-ttx', 'test_ok', sprintf(
                 /* translators: %s: date/time string */
                 __('Connection OK. Session token acquired. Expires: %s', 'lh-ttx'), esc_html($exp)
@@ -136,7 +138,7 @@ final class LH_Ttx_Settings_Page {
         $company_id = function_exists('lh_ttx_get_company_id')    ? lh_ttx_get_company_id()    : 0;
         $webhook    = function_exists('lh_ttx_get_webhook_secret')? lh_ttx_get_webhook_secret(): '';
 
-        $session    = function_exists('lh_ttx_get_cached_session')? lh_ttx_get_cached_session(): ['token'=>'','expires'=>0];
+        $session    = function_exists('lh_ttx_get_cached_session')? lh_ttx_get_cached_session(): ['token'=>'','expires'=>''];
 
         $consumer_mask = $this->mask_token($consumer);
         $employee_mask = $this->mask_token($employee);
@@ -214,9 +216,10 @@ final class LH_Ttx_Settings_Page {
                             <th scope="row"><?php esc_html_e('Session status', 'lh-ttx'); ?></th>
                             <td>
                                 <?php
-                                $has   = !empty($session['token']);
-                                $expTs = (int) ($session['expires'] ?? 0);
-                                $exp   = $expTs ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $expTs) : __('unknown', 'lh-ttx');
+                                $has    = !empty($session['token']);
+                                $expRaw = isset($session['expires']) ? (string) $session['expires'] : '';
+                                $expTs  = $expRaw !== '' ? strtotime($expRaw) : false;
+                                $exp    = $expTs ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $expTs) : __('unknown', 'lh-ttx');
                                 ?>
                                 <p>
                                     <strong><?php echo $has ? esc_html__('Active', 'lh-ttx') : esc_html__('Not set', 'lh-ttx'); ?></strong>
