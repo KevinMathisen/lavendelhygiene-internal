@@ -65,7 +65,6 @@ final class LH_Ttx_Webhooks {
         $product_id = $this->find_wc_product_by_tripletex_id($ttx_product_id);
 
         if (!$product_id) {
-            // No local mapping yet; accept to avoid retries/disabling
             LH_Ttx_Logger::info('Webhook product event: no local mapping', [
                 'event'          => $event,
                 'ttx_product_id' => $ttx_product_id,
@@ -75,60 +74,45 @@ final class LH_Ttx_Webhooks {
             return new \WP_REST_Response(['ok' => true, 'mapped' => false], 200);
         }
 
-        // For create/update: pull fresh data (price; optionally stock)
-        if ($event === 'product.create' || $event === 'product.update') {
-            // TODO: If priceLists are included in $value, pick correct priceListId. For now, null = default list.
-            $price_list_id = null;
+        if ($event !== 'product.update') {
+            LH_Ttx_Logger::info('Webhook product event ignored (unhandled verb)', [
+                'event'          => $event,
+                'ttx_product_id' => $ttx_product_id,
+                'subscriptionId' => $subscriptionId,
+                'requestId'      => $requestId,
+            ]);
 
-            $svc = LH_Ttx_Service_Registry::instance()->products();
+            return new \WP_REST_Response(['ok' => true, 'ignored' => true], 200);
+        }
 
-            $priceRes = $svc->sync_price_from_tripletex($product_id, $price_list_id);
-            if (is_wp_error($priceRes)) {
-                LH_Ttx_Logger::error('Webhook product price sync failed', [
-                    'ttx_product_id' => $ttx_product_id,
-                    'event'          => $event,
-                    'error'          => $priceRes->get_error_message(),
-                    'requestId'      => $requestId,
-                ]);
-                // Still 200 to avoid disabling; report failure
-                return new \WP_REST_Response(['ok' => false, 'error' => $priceRes->get_error_message()], 200);
-            }
+        $price = $value['priceExcludingVatCurrency'] ?? null;
 
-            // Optional: stock sync — Tripletex doesn’t publish a distinct stock event; confirm if product.update carries inventory changes.
-            // TODO: Determine proper warehouseId and whether inventory changes are reflected on product.update.
-            // $stockRes = $svc->sync_stock_from_tripletex($product_id, /* $warehouse_id */ null);
+        $svc = LH_Ttx_Service_Registry::instance()->products();
 
-            LH_Ttx_Logger::info('Webhook product sync OK', [
+        // pass price, so if it is defined we use this directly instead of asking tripletex for updated price
+        $priceRes = $svc->sync_price_from_tripletex($product_id, $price);
+        if (is_wp_error($priceRes)) {
+            LH_Ttx_Logger::error('Webhook product price sync failed', [
                 'ttx_product_id' => $ttx_product_id,
                 'event'          => $event,
-                'subscriptionId' => $subscriptionId,
+                'error'          => $priceRes->get_error_message(),
                 'requestId'      => $requestId,
             ]);
-
-            return new \WP_REST_Response(['ok' => true], 200);
+            // Still 200 to avoid disabling; report failure
+            return new \WP_REST_Response(['ok' => false, 'error' => $priceRes->get_error_message()], 200);
         }
 
-        if ($event === 'product.delete') {
-            // TODO: Decide policy. Options:
-            // - Unlink mapping meta (_tripletex_product_id) locally
-            // - Set product to draft or out-of-stock
-            LH_Ttx_Logger::info('Webhook product deleted (no local action yet)', [
-                'ttx_product_id' => $ttx_product_id,
-                'subscriptionId' => $subscriptionId,
-                'requestId'      => $requestId,
-            ]);
-            return new \WP_REST_Response(['ok' => true], 200);
-        }
+        // TODO: confirm if product.update is triggered on stock updates.
+        // $stockRes = $svc->sync_stock_from_tripletex($product_id, null);
 
-        // Any other product.* verbs
-        LH_Ttx_Logger::info('Webhook product event ignored (unhandled verb)', [
-            'event'          => $event,
+        LH_Ttx_Logger::info('Webhook product sync OK', [
             'ttx_product_id' => $ttx_product_id,
+            'event'          => $event,
             'subscriptionId' => $subscriptionId,
             'requestId'      => $requestId,
         ]);
 
-        return new \WP_REST_Response(['ok' => true, 'ignored' => true], 200);
+        return new \WP_REST_Response(['ok' => true], 200);
     }
 
     /* ------------------------ Helpers ------------------------ */
@@ -136,25 +120,17 @@ final class LH_Ttx_Webhooks {
     private function verify_auth(\WP_REST_Request $request) {
         $secret = (string) lh_ttx_get_webhook_secret();
         if ($secret === '') {
-            // No secret configured; accept but log a warning
+            // No secret configured
             LH_Ttx_Logger::info('Webhook received without configured secret', []);
             return new \WP_Error('unauthorized', __('Ugyldig eller manglende webhook-autentisering.', 'lh-ttx'));
         }
 
-        // Recommended: Authorization: Bearer <secret>
+        // Authorization: Bearer <secret>
         $auth = $request->get_header('authorization');
         if (is_string($auth) && stripos($auth, 'bearer ') === 0) {
             $token = trim(substr($auth, 7));
             if (hash_equals($secret, $token)) return true;
         }
-
-        // Alternative: X-Tripletex-Token: <secret>
-        $hdrToken = $request->get_header('x-tripletex-token');
-        if (is_string($hdrToken) && hash_equals($secret, $hdrToken)) return true;
-
-        // Fallback: ?token=<secret>
-        $qToken = (string) $request->get_param('token');
-        if ($qToken !== '' && hash_equals($secret, $qToken)) return true;
 
         return new \WP_Error('unauthorized', __('Ugyldig eller manglende webhook-autentisering.', 'lh-ttx'));
     }
