@@ -240,10 +240,10 @@ final class LH_Ttx_Orders_Service {
 
         $payload = [
             'customer'      => [ 'id' => $ttx_customer_id ],
-            'orderDate'     => $order_dt,
+            'orderDate'     => $order_dt, // TODO: Check how many of these defaults to correct.
             'currency'      => [ 'code' => $currency ],
             'yourOrderNumber' => (string) $order->get_order_number(),
-            // Add other fields you use: delivery terms, references, comments, etc.
+            // TODO: add other possible fields, e.g. delivery terms, references, comments, etc.
         ];
 
         $lines = [];

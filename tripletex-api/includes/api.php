@@ -19,14 +19,6 @@ if (!class_exists('LH_Ttx_Logger')) {
     final class LH_Ttx_Logger { public static function info($m,$c=[]){ } public static function error($m,$c=[]){ } }
 }
 
-/** Mask secrets in logs */
-function ttx_mask(?string $s, int $keepTail = 4): string {
-    if (!$s) return '';
-    $len = strlen($s);
-    if ($len <= $keepTail) return str_repeat('*', $len);
-    return str_repeat('*', max(0, $len - $keepTail)) . substr($s, -$keepTail);
-}
-
 /** Join fields param (array|string) into Tripletex format */
 function ttx_normalize_fields($fields) {
     if (is_array($fields)) return implode(',', array_filter(array_map('trim', $fields)));
@@ -112,7 +104,7 @@ function ttx_get_session_token() {
     $url = ttx_build_url('/token/session/:create', [
         'consumerToken' => $consumer,
         'employeeToken' => $employee,
-    ]);
+    ]); // TODO: need to also specify expirationDate
 
     $args = [
         'method'  => 'POST',
@@ -152,6 +144,10 @@ function ttx_get_session_token() {
             'body' => $decoded,
         ]);
     }
+
+    // TODO: update body parsing
+    // body has format:
+    // { "value": { ... "expirationDate": "2020-01-01", "token": "eyJ0b2...0=", ... }}
 
     $data = json_decode($body, true);
     $data = ttx_unwrap($data);
