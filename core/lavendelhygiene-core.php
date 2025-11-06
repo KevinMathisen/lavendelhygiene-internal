@@ -80,21 +80,21 @@ final class LavendelHygiene_Core {
 /* ---------- Services ---------- */
 
 class LavendelHygiene_TripletexLinkingService {
-    public function get( int $user_id ): string {
+    public function get_ttx_id( int $user_id ): string {
         return (string) get_user_meta( $user_id, LavendelHygiene_Core::META_TRIPLETEX_ID, true );
     }
 
-    public function sanitize( string $raw ): string {
+    public function sanitize_ttx_id( string $raw ): string {
         return preg_replace( '/\D+/', '', $raw );
     }
 
-    public function is_unique( string $id, int $exclude_user_id = 0 ): bool {
-        if ( $id === '' ) return true;
+    public function is_ttx_id_unique( string $ttx_id, int $exclude_user_id = 0 ): bool {
+        if ( $ttx_id === '' ) return true;
         $q = new WP_User_Query( [
             'number'   => 1,
             'fields'   => 'ID',
             'meta_key' => LavendelHygiene_Core::META_TRIPLETEX_ID,
-            'meta_value' => $id,
+            'meta_value' => $ttx_id,
             'meta_compare' => '=',
         ] );
         $found = $q->get_results();
@@ -103,7 +103,7 @@ class LavendelHygiene_TripletexLinkingService {
         return $first === (int) $exclude_user_id;
     }
 
-    public function set( int $user_id, string $id, int $actor_user_id ): void {
+    public function set_ttx_id_wp( int $user_id, string $id, int $actor_user_id ): void {
         update_user_meta( $user_id, LavendelHygiene_Core::META_TRIPLETEX_ID, $id );
         update_user_meta( $user_id, LavendelHygiene_Core::META_TTX_LINKED_BY, $actor_user_id );
         update_user_meta( $user_id, LavendelHygiene_Core::META_TTX_LINKED_AT, current_time( 'mysql' ) );
@@ -113,20 +113,20 @@ class LavendelHygiene_TripletexLinkingService {
         do_action( 'lavendelhygiene_tripletex_linked', $user_id, $id, $actor_user_id );
     }
 
-    public function clear( int $user_id ): void {
+    public function clear_ttx_id_wp( int $user_id ): void {
         delete_user_meta( $user_id, LavendelHygiene_Core::META_TRIPLETEX_ID );
         delete_user_meta( $user_id, LavendelHygiene_Core::META_TTX_LINKED_BY );
         delete_user_meta( $user_id, LavendelHygiene_Core::META_TTX_LINKED_AT );
         do_action( 'lavendelhygiene_tripletex_unlinked', $user_id );
     }
 
-    public function save_from_input( int $user_id, string $raw, int $actor_user_id ) {
-        $id = $this->sanitize($raw);
-        if ( $id === '' ) { $this->clear($user_id); return 'cleared'; }
-        if ( ! $this->is_unique($id, $user_id) ) {
+    public function save_ttx_id_from_input( int $user_id, string $raw, int $actor_user_id ) {
+        $id = $this->sanitize_ttx_id($raw);
+        if ( $id === '' ) { $this->clear_ttx_id_wp($user_id); return 'cleared'; }
+        if ( ! $this->is_ttx_id_unique($id, $user_id) ) {
             return new WP_Error( 'ttx_duplicate', __( 'Tripletex ID already linked to another user.', 'lavendelhygiene' ) );
         }
-        $this->set($user_id, $id, $actor_user_id);
+        $this->set_ttx_id_wp($user_id, $id, $actor_user_id);
         return 'saved';
     }
 
@@ -197,7 +197,7 @@ class LavendelHygiene_AdminApplications {
                     <?php foreach ( $users as $u ) :
                         $company = get_user_meta( $u->ID, 'billing_company', true );
                         $orgnr   = get_user_meta( $u->ID, LavendelHygiene_Core::META_ORGNR, true );
-                        $ttx_id  = $svc->get( $u->ID );
+                        $ttx_id  = $svc->get_ttx_id( $u->ID );
 
                         $approve_url = wp_nonce_url(
                             admin_url( 'admin-post.php?action=lavendelhygiene_approve&user_id=' . $u->ID ),
@@ -335,7 +335,7 @@ class LavendelHygiene_AdminApplications {
         check_admin_referer( 'lavendelhygiene_set_tripletex_id_' . $user_id );
 
         $svc = new LavendelHygiene_TripletexLinkingService();
-        $res = $svc->save_from_input( $user_id, (string) ($_POST['tripletex_customer_id'] ?? ''), get_current_user_id() );
+        $res = $svc->save_ttx_id_from_input( $user_id, (string) ($_POST['tripletex_customer_id'] ?? ''), get_current_user_id() );
 
         if ( is_wp_error($res) ) {
             wp_die( $res->get_error_message() );
@@ -367,7 +367,7 @@ class LavendelHygiene_Ajax {
         check_ajax_referer( 'lavendelhygiene_set_tripletex_id_' . $user_id );
 
         $svc = new LavendelHygiene_TripletexLinkingService();
-        $res = $svc->save_from_input( $user_id, (string) ($_POST['tripletex_customer_id'] ?? ''), get_current_user_id() );
+        $res = $svc->save_ttx_id_from_input( $user_id, (string) ($_POST['tripletex_customer_id'] ?? ''), get_current_user_id() );
 
         if ( is_wp_error($res) ) {
             wp_send_json_error( [ 'message' => $res->get_error_message() ], 409 );
@@ -398,7 +398,7 @@ class LavendelHygiene_ProfileFields {
     public function render( $user ) {
         if ( ! current_user_can( 'list_users' ) ) return;
         $svc  = new LavendelHygiene_TripletexLinkingService();
-        $ttx  = $svc->get( $user->ID );
+        $ttx  = $svc->get_ttx_id( $user->ID );
         ?>
         <h2><?php esc_html_e('B2B / Tripletex', 'lavendelhygiene'); ?></h2>
         <table class="form-table" role="presentation">
@@ -426,11 +426,11 @@ class LavendelHygiene_ProfileFields {
         if ( ! isset( $_POST['tripletex_customer_id'] ) ) return;
 
         $svc = new LavendelHygiene_TripletexLinkingService();
-        $id  = $svc->sanitize( (string) $_POST['tripletex_customer_id'] );
+        $id  = $svc->sanitize_ttx_id( (string) $_POST['tripletex_customer_id'] );
 
-        if ( $id === '' ) { $svc->clear( $user_id ); return; }
-        if ( ! $svc->is_unique( $id, $user_id ) ) { return; } // validator already added the error
-        $svc->set( $user_id, $id, get_current_user_id() );
+        if ( $id === '' ) { $svc->clear_ttx_id_wp( $user_id ); return; }
+        if ( ! $svc->is_ttx_id_unique( $id, $user_id ) ) { return; } // validator already added the error
+        $svc->set_ttx_id_wp( $user_id, $id, get_current_user_id() );
     }
 
     public function validate_profile( $errors, $update, $user ) {
@@ -449,10 +449,10 @@ class LavendelHygiene_ProfileFields {
         ) return;
 
         $svc = new LavendelHygiene_TripletexLinkingService();
-        $id  = $svc->sanitize( (string) $_POST['tripletex_customer_id'] );
+        $id  = $svc->sanitize_ttx_id( (string) $_POST['tripletex_customer_id'] );
 
         // Empty is allowed (clears mapping), so only check uniqueness if non-empty
-        if ( $id !== '' && ! $svc->is_unique( $id, (int) $user->ID ) ) {
+        if ( $id !== '' && ! $svc->is_ttx_id_unique( $id, (int) $user->ID ) ) {
             $errors->add( 'tripletex_duplicate', __( 'Tripletex ID already linked to another user.', 'lavendelhygiene' ) );
         }
     }
