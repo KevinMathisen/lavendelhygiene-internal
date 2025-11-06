@@ -210,11 +210,7 @@ final class LH_Ttx_Admin_Applications_Hooks {
     public function __construct(LH_Ttx_Service_Registry $svc) { $this->svc = $svc; }
 
     public function init(): void {
-        // Non-AJAX handlers (form posts)
         add_action('admin_post_lavendelhygiene_create_tripletex', [$this, 'handle_create_in_tripletex']);
-
-        // AJAX handlers (if you wire from JS)
-        add_action('wp_ajax_lavendelhygiene_create_tripletex', [$this, 'ajax_create_in_tripletex']);
     }
 
     /** Capability gate for app actions */
@@ -239,21 +235,6 @@ final class LH_Ttx_Admin_Applications_Hooks {
 
         wp_safe_redirect(admin_url('users.php?page=lavendelhygiene-applications&tripletex_created=1'));
         exit;
-    }
-
-    /** AJAX variant (JSON) */
-    public function ajax_create_in_tripletex(): void {
-        if (!$this->can_manage()) wp_send_json_error(['message' => __('No permission.', 'lh-ttx')], 403);
-        $user_id = isset($_POST['user_id']) ? absint($_POST['user_id']) : 0;
-        check_ajax_referer('lavendelhygiene_create_tripletex_' . $user_id);
-
-        $customers = $this->svc->customers();
-        $res = $customers->create_and_link($user_id);
-
-        if (is_wp_error($res)) {
-            wp_send_json_error(['message' => $res->get_error_message()], 409);
-        }
-        wp_send_json_success(['message' => __('Kunde opprettet i Tripletex og lenket.', 'lh-ttx')]);
     }
 }
 
