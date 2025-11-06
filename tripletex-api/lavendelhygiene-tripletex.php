@@ -3,7 +3,7 @@
  * Plugin Name: LavendelHygiene Tripletex
  * Description: Tripletex integration for customers, products, and orders
  * Author: Kevin Nikolai Mathisen
- * Version: 0.2.0
+ * Version: 0.3.0
  * Requires Plugins: woocommerce
  * 
  * TODO: test, use SKU as tripletex ID, test webhook, add user text/extra info to tripletex order
@@ -13,7 +13,7 @@
 if (!defined('ABSPATH')) exit;
 
 
-define('LH_TTX_VERSION',          '0.2.0');
+define('LH_TTX_VERSION',          '0.3.0');
 define('LH_TTX_PLUGIN_FILE',      __FILE__);
 define('LH_TTX_PLUGIN_BASENAME',  plugin_basename(__FILE__));
 define('LH_TTX_PLUGIN_DIR',       plugin_dir_path(__FILE__));
@@ -115,117 +115,30 @@ add_action('plugins_loaded', function () {
         return;
     }
 
-    require_once LH_TTX_PLUGIN_DIR . 'includes/api.php';           // contains ttx_*() functions
-    require_once LH_TTX_PLUGIN_DIR . 'includes/services.php';      // defines LH_Ttx_*Service classes + mappers
-    require_once LH_TTX_PLUGIN_DIR . 'includes/settings-page.php'; // settings UI (tokens, base url, tests)
+    require_once LH_TTX_PLUGIN_DIR . 'includes/api.php';
+    require_once LH_TTX_PLUGIN_DIR . 'includes/services.php';
+    require_once LH_TTX_PLUGIN_DIR . 'includes/settings-page.php';
     require_once LH_TTX_PLUGIN_DIR . 'includes/webhooks.php';
 
     $services = LH_Ttx_Service_Registry::instance();
 
-    (new LH_Ttx_Woo_Hooks($services))->init();
-
-    (new LH_Ttx_Admin_Applications_Hooks($services))->init();
-
-    (new LH_Ttx_Settings_Page())->init();
-
+    // REST/webhooks should always register
     (new LH_Ttx_Webhooks())->init();
 
-    // Add "settings" link to plugin row on plugin page
-    add_filter('plugin_action_links_' . LH_TTX_PLUGIN_BASENAME, function ($links) {
-        $url = admin_url('admin.php?page=lh-ttx-settings');
-        array_unshift($links, '<a href="'.esc_url($url).'">'.esc_html__('Settings', 'lh-ttx').'</a>');
-        return $links;
-    });
-});
-
-/**
- * WooCommerce hook wiring
- */
-final class LH_Ttx_Woo_Hooks {
-    private LH_Ttx_Service_Registry $svc;
-
-    public function __construct(LH_Ttx_Service_Registry $svc) { $this->svc = $svc; }
-
-    public function init(): void {
-        // On checkout: create Tripletex order (do not block checkout; notify on failure)
-        add_action('woocommerce_checkout_order_processed', [$this, 'on_order_processed'], 20, 3);
-
-        // Customer updates (billing/shipping)
-        add_action('woocommerce_customer_save_address', [$this, 'on_customer_save_address'], 20, 2);
-
-        // Optional: profile_update in admin (when staff edits user)
-        add_action('profile_update', [$this, 'on_profile_update'], 20, 2);
+    // Admin UI only
+    if (is_admin()) {
+        (new LH_Ttx_Settings_Page())->init();
     }
 
-    public function on_order_processed(int $order_id, array $posted_data, WC_Order $order): void {
-        $orders = $this->svc->orders();
-        $result = $orders->create_remote_order($order_id);
-
-        if (is_wp_error($result)) {
-            // Log + notify customer (non-blocking)
-            LH_Ttx_Logger::error('Tripletex order creation failed', [
-                'order_id' => $order_id,
-                'error'    => $result->get_error_message(),
-            ]);
-
-            // Add order note for admins
-            $order->add_order_note(__('Tripletex: Failed to create remote order. Please contact customer and try again.', 'lh-ttx'));
-
-            // Frontend notice (only if checkout still has a session context)
-            wc_add_notice(__('Det skjedde en feil i prosesseringen av orderen din. Vennligst kontakt oss.', 'lh-ttx'), 'error');
+    // "Create in Tripletex" action (admin-post)
+    add_action('admin_post_lavendelhygiene_create_tripletex', function () use ($services) {
+        if (!current_user_can('manage_woocommerce') && !current_user_can('promote_users') && !current_user_can('list_users')) {
+            wp_die(__('No permission.', 'lh-ttx'));
         }
-    }
-
-    public function on_customer_save_address(int $user_id, string $address_type): void {
-        // Sync changed fields to Tripletex (create if missing, else update)
-        $customers = $this->svc->customers();
-        $res = $customers->sync_user($user_id);
-        if (is_wp_error($res)) {
-            LH_Ttx_Logger::error('Tripletex customer sync failed', [
-                'user_id' => $user_id,
-                'error'   => $res->get_error_message(),
-            ]);
-        }
-    }
-
-    public function on_profile_update(int $user_id, WP_User $old_user_data): void {
-        $customers = $this->svc->customers();
-        $res = $customers->sync_user($user_id);
-        if (is_wp_error($res)) {
-            LH_Ttx_Logger::error('Tripletex customer sync (admin profile) failed', [
-                'user_id' => $user_id,
-                'error'   => $res->get_error_message(),
-            ]);
-        }
-    }
-}
-
-/**
- * Admin Applications hooks
- */
-final class LH_Ttx_Admin_Applications_Hooks {
-    private LH_Ttx_Service_Registry $svc;
-
-    public function __construct(LH_Ttx_Service_Registry $svc) { $this->svc = $svc; }
-
-    public function init(): void {
-        add_action('admin_post_lavendelhygiene_create_tripletex', [$this, 'handle_create_in_tripletex']);
-    }
-
-    private function can_manage(): bool {
-        return current_user_can('manage_woocommerce') || current_user_can('promote_users') || current_user_can('list_users');
-    }
-
-    /** Create customer in Tripletex and link local customer to this tripletex id */
-    public function handle_create_in_tripletex(): void {
-        if (!$this->can_manage()) wp_die(__('No permission.', 'lh-ttx'));
-
         $user_id = isset($_GET['user_id']) ? absint($_GET['user_id']) : 0;
         check_admin_referer('lavendelhygiene_create_tripletex_' . $user_id);
 
-        $customers = $this->svc->customers();
-        $res = $customers->create_and_link($user_id);
-
+        $res = $services->customers()->create_and_link($user_id);
         if (is_wp_error($res)) {
             LH_Ttx_Logger::error('Tripletex create failed', ['user_id' => $user_id, 'error' => $res->get_error_message()]);
             wp_die($res->get_error_message());
@@ -233,8 +146,51 @@ final class LH_Ttx_Admin_Applications_Hooks {
 
         wp_safe_redirect(admin_url('users.php?page=lavendelhygiene-applications&tripletex_created=1'));
         exit;
-    }
-}
+    });
+
+    // ------- WooCommerce hooks ------- 
+    add_action('woocommerce_checkout_order_processed', function (int $order_id, array $posted_data, WC_Order $order) use ($services) {
+        $orders = $services->orders();
+        $result = $orders->create_remote_order($order_id);
+
+        if (is_wp_error($result)) {
+            LH_Ttx_Logger::error('Tripletex order creation failed', [
+                'order_id' => $order_id,
+                'error'    => $result->get_error_message(),
+            ]);
+            $order->add_order_note(__('Tripletex: Failed to create remote order. Please contact customer and try again.', 'lh-ttx'));
+            wc_add_notice(__('Det skjedde en feil i prosesseringen av orderen din. Vennligst kontakt oss.', 'lh-ttx'), 'error');
+        }
+    }, 20, 3);
+
+    add_action('woocommerce_customer_save_address', function (int $user_id) use ($services) {
+        $res = $services->customers()->sync_user($user_id);
+        if (is_wp_error($res)) {
+            LH_Ttx_Logger::error('Tripletex customer sync failed', [
+                'user_id' => $user_id,
+                'error'   => $res->get_error_message(),
+            ]);
+        }
+    }, 20, 1);
+
+    add_action('profile_update', function (int $user_id) use ($services) {
+        $res = $services->customers()->sync_user($user_id);
+        if (is_wp_error($res)) {
+            LH_Ttx_Logger::error('Tripletex customer sync (admin profile) failed', [
+                'user_id' => $user_id,
+                'error'   => $res->get_error_message(),
+            ]);
+        }
+    }, 20, 1);
+
+    /* ---- Misc ---- */
+    // Add "settings" link to plugin row on plugin page
+    add_filter('plugin_action_links_' . LH_TTX_PLUGIN_BASENAME, function ($links) {
+        $url = admin_url('admin.php?page=lh-ttx-settings');
+        array_unshift($links, '<a href="'.esc_url($url).'">'.esc_html__('Settings', 'lh-ttx').'</a>');
+        return $links;
+    });
+});
 
 /**
  * Service registry
@@ -251,17 +207,12 @@ final class LH_Ttx_Service_Registry {
     }
 
     public function customers(): LH_Ttx_Customers_Service {
-        if (!$this->customers) $this->customers = new LH_Ttx_Customers_Service();
-        return $this->customers;
+        return $this->customers ??= new LH_Ttx_Customers_Service();
     }
-
     public function orders(): LH_Ttx_Orders_Service {
-        if (!$this->orders) $this->orders = new LH_Ttx_Orders_Service();
-        return $this->orders;
+        return $this->orders ??= new LH_Ttx_Orders_Service();
     }
-
     public function products(): LH_Ttx_Products_Service {
-        if (!$this->products) $this->products = new LH_Ttx_Products_Service();
-        return $this->products;
+        return $this->products ??= new LH_Ttx_Products_Service();
     }
 }
