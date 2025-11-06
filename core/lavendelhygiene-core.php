@@ -328,7 +328,7 @@ class LavendelHygiene_ProfileFields {
         $svc  = new LavendelHygiene_TripletexLinkingService();
         $ttx  = $svc->get_ttx_id( $user->ID );
         ?>
-        <h2><?php esc_html_e('B2B / Tripletex', 'lavendelhygiene'); ?></h2>
+        <h2><?php esc_html_e('LH: Tripletex link', 'lavendelhygiene'); ?></h2>
         <table class="form-table" role="presentation">
             <tr>
                 <th><label for="tripletex_customer_id"><?php esc_html_e('Tripletex Customer ID','lavendelhygiene'); ?></label></th>
@@ -386,7 +386,7 @@ class LavendelHygiene_ProfileFields {
     }
 
     public function users_col( $cols ) {
-        $cols['b2b_status'] = __( 'B2B status', 'lavendelhygiene' );
+        $cols['b2b_status'] = __( 'Approved?', 'lavendelhygiene' );
         $cols['tripletex_id'] = __( 'Tripletex ID', 'lavendelhygiene' ); 
         return $cols;
     }
