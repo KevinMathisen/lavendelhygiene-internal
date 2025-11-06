@@ -172,6 +172,9 @@ class LavendelHygiene_AdminApplications {
             <?php if ( isset($_GET['tripletex_updated']) ) : ?>
                 <div class="notice notice-success"><p><?php esc_html_e('Tripletex ID updated.', 'lavendelhygiene'); ?></p></div>
             <?php endif; ?>
+            <?php if ( isset($_GET['tripletex_created']) ) : ?>
+                <div class="notice notice-success"><p><?php esc_html_e('Customer created in Tripletex.', 'lavendelhygiene'); ?></p></div>
+            <?php endif; ?>
 
             <?php if ( empty( $users ) ) : ?>
                 <p><?php esc_html_e( 'No pending applications.', 'lavendelhygiene' ); ?></p>
