@@ -145,8 +145,8 @@ class LavendelHygiene_AdminApplications {
 
     public function admin_menu() {
         add_users_page(
-            __( 'B2B Applications', 'lavendelhygiene' ),
-            __( 'B2B Applications', 'lavendelhygiene' ),
+            __( 'LH: Pending Users', 'lavendelhygiene' ),
+            __( 'LH: Pending Users', 'lavendelhygiene' ),
             'list_users',
             'lavendelhygiene-applications',
             [ $this, 'render_admin_applications' ]
@@ -166,14 +166,9 @@ class LavendelHygiene_AdminApplications {
         $users = $q->get_results();
         $svc = new LavendelHygiene_TripletexLinkingService();
 
-        // TODO: add two buttons/actions to user. 
-        //  One "Check if exists in tripletex", which checks if there exists a customer with same company name or orgnr, then sets their tripletexId
-        //  And another one "Create user in tripletex", which created a user in tripletex and then sets their tripletexID
-        //    if any errors happens (e.g. user exists already when we click create user) we get a popup.
-
         ?>
         <div class="wrap">
-            <h1><?php esc_html_e( 'B2B Applications (Pending)', 'lavendelhygiene' ); ?></h1>
+            <h1><?php esc_html_e( 'Pending Users', 'lavendelhygiene' ); ?></h1>
 
             <?php if ( isset($_GET['tripletex_updated']) ) : ?>
                 <div class="notice notice-success"><p><?php esc_html_e('Tripletex ID updated.', 'lavendelhygiene'); ?></p></div>
@@ -238,7 +233,7 @@ class LavendelHygiene_AdminApplications {
                                 <a href="<?php echo esc_url( $deny_url ); ?>" class="button"><?php esc_html_e( 'Deny', 'lavendelhygiene' ); ?></a>
                                 <a href="<?php echo esc_url( get_edit_user_link( $u->ID ) ); ?>" class="button"><?php esc_html_e( 'View', 'lavendelhygiene' ); ?></a>
                                 <a href="<?php echo esc_url( $ttx_check_url ); ?>" class="button"><?php esc_html_e( 'Check in Tripletex', 'lavendelhygiene' ); ?></a>
-                                <a href="<?php echo esc_url( $ttx_create_url ); ?>" class="button"><?php esc_html_e( 'Create in Tripletex', 'lavendelhygiene' ); ?></a>
+                                <a href="<?php echo esc_url( $ttx_create_url ); ?>" class="button button-secondary"><?php esc_html_e( 'Create in Tripletex', 'lavendelhygiene' ); ?></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -295,6 +290,7 @@ class LavendelHygiene_AdminApplications {
             update_user_meta( $user_id, LavendelHygiene_Core::META_APPROVED_BY, get_current_user_id() );
             update_user_meta( $user_id, LavendelHygiene_Core::META_APPROVED_AT, current_time( 'mysql' ) );
 
+            /* Notify user through email that they were approved */
             wp_mail(
                 $user->user_email,
                 __( '[Lavendel Hygiene AS] Kontoen din er godkjent', 'lavendelhygiene' ),
@@ -314,10 +310,12 @@ class LavendelHygiene_AdminApplications {
         if ( $user ) {
             update_user_meta( $user_id, LavendelHygiene_Core::META_STATUS, 'denied' );
             $user->set_role( 'subscriber' );
+
+            /* Notify user through email that they were denied */
             wp_mail(
                 $user->user_email,
                 __( 'Konto avslått', 'lavendelhygiene' ),
-                __( "Beklager, søknaden din ble avslått. Kontakt oss for mer informasjon.", 'lavendelhygiene' )
+                __( "Beklager, kontoen din hos Lavendel Hygiene ble ikke godkjent.\n\nKontakt oss hvis du har noen spørsmål.\n\nHilsen oss i Lavendel Hygiene", 'lavendelhygiene' )
             );
         }
         wp_safe_redirect( admin_url( 'users.php?page=lavendelhygiene-applications&denied=1' ) );
