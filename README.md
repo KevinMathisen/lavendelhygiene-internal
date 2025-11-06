@@ -17,7 +17,7 @@ The extensions are as follows:
 ## Project structure
 
 ```
-custom-extension/
+lavendelhygiene-internal/
 ├─ core/
 │  └─ lavendelhygiene-core.php            
 └─ tripletex-api/
