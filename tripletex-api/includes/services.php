@@ -316,10 +316,10 @@ final class LH_Ttx_Products_Service {
      * Pull price from Tripletex and apply to WooCommerce product.
      *
      * @param int      $product_id
-     * @param int|null $price_list_id
+     * @param int|null $new_price (if null we get new price from tripletex)
      * @return true|\WP_Error
      */
-    public function sync_price_from_tripletex(int $product_id, ?int $price_list_id = null) {
+    public function sync_price_from_tripletex(int $product_id, ?int $new_price = null) {
         $product = wc_get_product($product_id);
         if (!$product) return new WP_Error('product_missing', __('Finner ikke produkt.', 'lh-ttx'));
 
@@ -328,8 +328,12 @@ final class LH_Ttx_Products_Service {
             return new WP_Error('product_not_linked', __('Produktet er ikke linket til Tripletex.', 'lh-ttx'));
         }
 
-        $price = ttx_products_get_price($ttx_pid, $price_list_id);
-        if (is_wp_error($price)) return $price;
+        if (!$new_price) {
+            $price = ttx_products_get_price($ttx_pid, null);
+            if (is_wp_error($price)) return $price;
+        } else {
+            $price = $new_price;
+        }
 
         // Apply price (choose regular or sale strategy)
         $product->set_regular_price(wc_format_decimal((float) $price, 2));
