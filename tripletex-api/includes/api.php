@@ -136,8 +136,7 @@ function ttx_get_session_token() {
 
     $status = (int) wp_remote_retrieve_response_code($res);
     $body   = wp_remote_retrieve_body($res);
-    $hdrs   = wp_remote_retrieve_headers($res);
-    $rid    = is_array($hdrs) ? ($hdrs['x-tlx-request-id'] ?? null) : (method_exists($hdrs, 'getArrayCopy') ? ($hdrs->getArrayCopy()['x-tlx-request-id'] ?? null) : null);
+    $rid    = wp_remote_retrieve_header($res, 'x-tlx-request-id');
 
     if ($status < 200 || $status >= 300) {
         $decoded = json_decode($body, true);
@@ -283,9 +282,8 @@ function ttx_request(string $method, string $path, array $args = []) {
 
         $status = (int) wp_remote_retrieve_response_code($res);
         $body   = wp_remote_retrieve_body($res);
-        $hdrs   = wp_remote_retrieve_headers($res);
-        $rid    = is_array($hdrs) ? ($hdrs['x-tlx-request-id'] ?? null) : (method_exists($hdrs, 'getArrayCopy') ? ($hdrs->getArrayCopy()['x-tlx-request-id'] ?? null) : null);
-        $retryAfterHeader = is_array($hdrs) ? ($hdrs['retry-after'] ?? null) : (method_exists($hdrs, 'getArrayCopy') ? ($hdrs->getArrayCopy()['retry-after'] ?? null) : null);
+        $rid    = wp_remote_retrieve_header($res, 'x-tlx-request-id');
+        $retryAfterHeader = wp_remote_retrieve_header($res, 'retry-after');
 
         // Success 2xx
         if ($status >= 200 && $status < 300) {
@@ -415,34 +413,12 @@ function ttx_customers_update(int $id, array $payload, ?int $version = null) {
 function ttx_products_get_price(int $product_id, ?int $price_list_id = null) {
     if ($product_id <= 0) return ttx_error('ttx_id_invalid', __('Ugyldig produkt-ID.', 'lh-ttx'));
 
-    if ($price_list_id) {
-        // Try dedicated product price endpoint if available
-        $res = ttx_get('/productprice', [
-            'product.id'   => $product_id,
-            'priceList.id' => $price_list_id,
-            'count'        => 1,
-            'fields'       => 'id,price.value,product(id),priceList(id)',
-        ]);
-        if (is_wp_error($res)) return $res;
-        if (is_array($res) && isset($res[0]['price']['value'])) {
-            return (float) $res[0]['price']['value'];
-        }
-    }
-
-    // Fallback: read price from product itself (field name depends on setup)
     $res = ttx_get("/product/{$product_id}", [
-        'fields' => 'id,salesPrice.value,price.value,unitPrice.value',
+        'fields' => 'id,priceExcludingVatCurrency',
     ]);
     if (is_wp_error($res)) return $res;
 
-    $candidates = [
-        $res['salesPrice']['value'] ?? null,
-        $res['price']['value'] ?? null,
-        $res['unitPrice']['value'] ?? null,
-    ];
-    foreach ($candidates as $v) {
-        if ($v !== null) return (float) $v;
-    }
+    if ($res['priceExcludingVatCurrency'] !== null) return (float) $res['priceExcludingVatCurrency'];
 
     return ttx_error('ttx_price_missing', __('Fant ingen prisfelt for produktet.', 'lh-ttx'), ['response' => $res]);
 }
@@ -455,29 +431,12 @@ function ttx_products_get_price(int $product_id, ?int $price_list_id = null) {
 function ttx_products_get_stock(int $product_id, ?int $warehouse_id = null) {
     if ($product_id <= 0) return ttx_error('ttx_id_invalid', __('Ugyldig produkt-ID.', 'lh-ttx'));
 
-    // Try common inventory endpoint pattern
-    $q = [
-        'product.id' => $product_id,
-        'count'      => 1,
-        'fields'     => 'quantity,available,product(id)',
-    ];
-    if ($warehouse_id) $q['warehouse.id'] = $warehouse_id;
-
-    $res = ttx_get('/inventory/available', $q);
-    if (!is_wp_error($res) && is_array($res) && isset($res[0])) {
-        $row = $res[0];
-        $qty = $row['available'] ?? $row['quantity'] ?? null;
-        if ($qty !== null) return (int) $qty;
-    }
-
-    // Fallback: read stock from product if exposed
     $res2 = ttx_get("/product/{$product_id}", [
-        'fields' => 'id,stock.quantity,stock.available,inventory',
+        'fields' => 'id,availableStock',
     ]);
     if (is_wp_error($res2)) return $res2;
 
-    $qty2 = $res2['stock']['available'] ?? $res2['stock']['quantity'] ?? $res2['inventory'] ?? null;
-    if ($qty2 !== null) return (int) $qty2;
+    if ($res['availableStock'] !== null) return (int) $res['availableStock'];
 
     return ttx_error('ttx_stock_missing', __('Fant ikke lagerstatus for produktet.', 'lh-ttx'), ['response' => $res2]);
 }
