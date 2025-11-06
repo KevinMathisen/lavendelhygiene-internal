@@ -198,21 +198,21 @@ add_action('plugins_loaded', function () {
 final class LH_Ttx_Service_Registry {
     private static ?self $instance = null;
 
-    private ?LH_Ttx_Customers_Service $customers = null;
-    private ?LH_Ttx_Orders_Service    $orders    = null;
-    private ?LH_Ttx_Products_Service  $products  = null;
+    private $customers = null;
+    private $orders    = null;
+    private $products  = null;
 
     public static function instance(): self {
         return self::$instance ??= new self();
     }
 
-    public function customers(): LH_Ttx_Customers_Service {
+    public function customers() {
         return $this->customers ??= new LH_Ttx_Customers_Service();
     }
-    public function orders(): LH_Ttx_Orders_Service {
+    public function orders() {
         return $this->orders ??= new LH_Ttx_Orders_Service();
     }
-    public function products(): LH_Ttx_Products_Service {
+    public function products() {
         return $this->products ??= new LH_Ttx_Products_Service();
     }
 }
