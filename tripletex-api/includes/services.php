@@ -283,7 +283,7 @@ final class LH_Ttx_Orders_Service {
     }
 
     /**
-     * Compute ex-VAT total per line. Adjust if you use inclusive taxes.
+     * Compute ex-VAT total per line.
      */
     private function line_total_ex_vat(\WC_Order_Item_Product $item): float {
         return (float) wc_format_decimal((float) $item->get_total(), 6);
@@ -291,16 +291,11 @@ final class LH_Ttx_Orders_Service {
 
     /**
      * Resolve Tripletex product id from a WC product.
-     * You might store it in a custom meta like _tripletex_product_id.
      */
     private function get_tripletex_product_id_from_wc_product(?\WC_Product $product): int {
         if (!$product) return 0;
         $id = (int) get_post_meta($product->get_id(), '_tripletex_product_id', true);
         if ($id > 0) return $id;
-
-        // Optional: try matching by SKU via API and persist it locally
-        // $sku = $product->get_sku();
-        // if ($sku) { ... ttx_products_find_by_sku($sku) ... }
 
         return 0;
     }
@@ -329,7 +324,7 @@ final class LH_Ttx_Products_Service {
         }
 
         if (!$new_price) {
-            $price = ttx_products_get_price($ttx_pid, null);
+            $price = ttx_products_get_price($ttx_pid);
             if (is_wp_error($price)) return $price;
         } else {
             $price = $new_price;

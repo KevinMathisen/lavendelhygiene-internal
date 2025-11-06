@@ -98,7 +98,7 @@ final class LH_Ttx_Webhooks {
                 'error'          => $priceRes->get_error_message(),
                 'requestId'      => $requestId,
             ]);
-            // Still 200 to avoid disabling; report failure
+            // 200 to avoid disabling
             return new \WP_REST_Response(['ok' => false, 'error' => $priceRes->get_error_message()], 200);
         }
 

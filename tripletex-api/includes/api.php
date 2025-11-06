@@ -76,7 +76,7 @@ function ttx_build_url(string $path, array $query = []): string {
  * -------------------------------------------------------------------------- */
 /**
  * Create/fetch a cached Tripletex session token using consumer+employee tokens.
- * Calls /token/session/:create without Authorization header.
+ * Calls /token/session/:create
  *
  * @return string|\WP_Error
  */
@@ -117,7 +117,7 @@ function ttx_get_session_token() {
         return ttx_error('ttx_tokens_missing', __('Tripletex API tokens are not configured.', 'lh-ttx'));
     }
 
-        // Build request (new) — JSON body including 2-day expiration; no Authorization header.
+    // Build request
     $expirationDate = (new DateTimeImmutable('now'))->add(new DateInterval('P2D'))->format('Y-m-d');
     $url = ttx_build_url('/token/session/:create');
 
@@ -190,7 +190,7 @@ function ttx_get_session_token() {
     return $token;
 }
 
-/** Clear cached session (force refresh) */
+/** Clear cached session */
 function ttx_clear_session_token(): void {
     if (function_exists('lh_ttx_clear_cached_session')) {
         lh_ttx_clear_cached_session();
@@ -216,7 +216,7 @@ function ttx_get_auth_header(?string $session_token = null, ?int $company_id = n
     return 'Basic ' . $encoded;
 }
 
-/** Default JSON headers (Authorization is added unless explicitly disabled) */
+/** Default JSON headers  */
 function ttx_default_headers(array $extra = [], bool $no_auth = false): array {
     $headers = [
         'Accept'       => 'application/json',
@@ -362,7 +362,6 @@ function ttx_request(string $method, string $path, array $args = []) {
 
     } while ($attempt < $maxAttempts);
 
-    // Should not reach here; safety:
     return ttx_error('ttx_unknown', __('Ukjent feil mot Tripletex.', 'lh-ttx'));
 }
 
@@ -382,7 +381,7 @@ function ttx_delete(string $path, array $query = [], array $headers = []) { retu
  * @return int|\WP_Error
  */
 function ttx_customers_create(array $payload) {
-    // OpenAPI: POST /customer expects a Customer object in the body
+    // POST /customer expects a Customer object in the body
     $res = ttx_post('/customer', $payload);
     if (is_wp_error($res)) return $res;
 
@@ -394,7 +393,7 @@ function ttx_customers_create(array $payload) {
 }
 
 /**
- * Update customer by id (PUT partial).
+ * Update customer by id.
  *
  * @return bool|\WP_Error
  */
@@ -402,7 +401,7 @@ function ttx_customers_update(int $id, array $payload, ?int $version = null) {
     if ($id <= 0) return ttx_error('ttx_id_invalid', __('Ugyldig Tripletex-ID.', 'lh-ttx'));
     if ($version !== null) $payload['version'] = $version;
 
-    // OpenAPI: PUT /customer/{id} expects a (partial) Customer object
+    // PUT /customer/{id} expects a (partial) Customer object
     $res = ttx_put("/customer/{$id}", $payload);
     if (is_wp_error($res)) return $res;
 
@@ -413,11 +412,11 @@ function ttx_customers_update(int $id, array $payload, ?int $version = null) {
  * Products
  * -------------------------------------------------------------------------- */
 /**
- * Get product price (ex. VAT). Supports optional price list via /productprice.
+ * Get product price (ex. VAT).
  *
  * @return float|\WP_Error
  */
-function ttx_products_get_price(int $product_id, ?int $price_list_id = null) {
+function ttx_products_get_price(int $product_id) {
     if ($product_id <= 0) return ttx_error('ttx_id_invalid', __('Ugyldig produkt-ID.', 'lh-ttx'));
 
     $res = ttx_get("/product/{$product_id}", [
@@ -431,7 +430,7 @@ function ttx_products_get_price(int $product_id, ?int $price_list_id = null) {
 }
 
 /**
- * Get stock (qty). Endpoint naming varies; try an inventory search, then product.
+ * Get stock (qty)
  *
  * @return int|\WP_Error
  */
@@ -453,12 +452,12 @@ function ttx_products_get_stock(int $product_id, ?int $warehouse_id = null) {
  * -------------------------------------------------------------------------- */
 
 /**
- * Create a new order; return new id.
+ * Create a new order, return new id.
  *
  * @return int|\WP_Error
  */
 function ttx_orders_create(array $payload) {
-    // OpenAPI: POST /order expects an Order object
+    // POST /order expects Order object
     $res = ttx_post('/order', $payload);
     if (is_wp_error($res)) return $res;
 

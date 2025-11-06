@@ -5,11 +5,6 @@
  * Exposes a simple admin UI to store tokens/base URL/company id and
  * to test/clear the Tripletex session token.
  *
- * Depends on:
- *  - Option keys & helpers defined in the main plugin file:
- *      LH_TTX_OPT_* constants
- *      lh_ttx_get_* / lh_ttx_set_* helper functions
- *  - API helper: ttx_get_session_token()
  */
 
 if (!defined('ABSPATH')) exit;

@@ -3,7 +3,7 @@
  * Plugin Name: LavendelHygiene Tripletex
  * Description: Tripletex integration for customers, products, and orders
  * Author: Kevin Nikolai Mathisen
- * Version: 0.3.0
+ * Version: 0.4.0
  * Requires Plugins: woocommerce
  * 
  * TODO: test, use SKU as tripletex ID, test webhook, add user text/extra info to tripletex order
@@ -13,7 +13,7 @@
 if (!defined('ABSPATH')) exit;
 
 
-define('LH_TTX_VERSION',          '0.3.0');
+define('LH_TTX_VERSION',          '0.4.0');
 define('LH_TTX_PLUGIN_FILE',      __FILE__);
 define('LH_TTX_PLUGIN_BASENAME',  plugin_basename(__FILE__));
 define('LH_TTX_PLUGIN_DIR',       plugin_dir_path(__FILE__));
