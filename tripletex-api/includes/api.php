@@ -120,7 +120,7 @@ function ttx_get_session_token() {
         'headers' => [
             'Accept'       => 'application/json',
             'Content-Type' => 'application/json; charset=utf-8',
-            'User-Agent'   => 'LavendelhygieneTripletex/' . (defined('CHEM_TTX_VERSION') ? CHEM_TTX_VERSION : 'dev'),
+            'User-Agent'   => 'LavendelhygieneTripletex/' . (defined('LH_TTX_VERSION') ? LH_TTX_VERSION : 'dev'),
         ],
         'body'    => wp_json_encode(new stdClass()), // body required by some stacks; empty JSON
     ];
@@ -215,7 +215,7 @@ function ttx_default_headers(array $extra = [], bool $no_auth = false): array {
     $headers = [
         'Accept'       => 'application/json',
         'Content-Type' => 'application/json; charset=utf-8',
-        'User-Agent'   => 'LavendelhygieneTripletex/' . (defined('CHEM_TTX_VERSION') ? CHEM_TTX_VERSION : 'dev'),
+        'User-Agent'   => 'LavendelhygieneTripletex/' . (defined('LH_TTX_VERSION') ? LH_TTX_VERSION : 'dev'),
     ];
     if (!$no_auth) {
         $auth = ttx_get_auth_header();
