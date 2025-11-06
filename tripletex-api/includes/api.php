@@ -12,7 +12,6 @@ if (!defined('ABSPATH')) exit;
  * Utilities (masking, array helpers)
  * -------------------------------------------------------------------------- */
 if (!function_exists('lh_ttx_get_base_url')) {
-    // Soft fallback if file is loaded standalone (tests).
     function lh_ttx_get_base_url() { return 'https://tripletex.no/v2'; }
 }
 if (!class_exists('LH_Ttx_Logger')) {
@@ -84,9 +83,27 @@ function ttx_build_url(string $path, array $query = []): string {
 function ttx_get_session_token() {
     if (function_exists('lh_ttx_get_cached_session')) {
         $cached = lh_ttx_get_cached_session();
-        $now = time() + 15; // small safety skew
-        if (!empty($cached['token']) && (int)$cached['expires'] > $now) {
-            return $cached['token'];
+
+        $cachedToken   = (string) ($cached['token'] ?? '');
+        $cachedExpires = (string) ($cached['expires'] ?? '');
+        $now = new DateTimeImmutable('now');
+
+        if ($cachedToken !== '' && $cachedExpires !== '') {
+            try {
+                // If only a date is provided (YYYY-MM-DD), treat it as start of day
+                //  i.e. if we are at the same date, the token has expired
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $cachedExpires)) {
+                    $exp = new DateTimeImmutable($cachedExpires . ' 00:00:00');
+                } else {
+                    $exp = new DateTimeImmutable($cachedExpires);
+                }
+                $bufferNow = (new DateTimeImmutable('now'))->add(new DateInterval('PT10M'));
+                if ($exp > $bufferNow) {
+                    return $cachedToken;
+                }
+            } catch (\Exception $e) {
+                // fall through to create a new session
+            }
         }
     }
 
@@ -100,11 +117,9 @@ function ttx_get_session_token() {
         return ttx_error('ttx_tokens_missing', __('Tripletex API tokens are not configured.', 'lh-ttx'));
     }
 
-    // Build request — Tripletex accepts tokens for session create (no Authorization header).
-    $url = ttx_build_url('/token/session/:create', [
-        'consumerToken' => $consumer,
-        'employeeToken' => $employee,
-    ]); // TODO: need to also specify expirationDate
+        // Build request (new) — JSON body including 2-day expiration; no Authorization header.
+    $expirationDate = (new DateTimeImmutable('now'))->add(new DateInterval('P2D'))->format('Y-m-d');
+    $url = ttx_build_url('/token/session/:create');
 
     $args = [
         'method'  => 'POST',
@@ -114,7 +129,11 @@ function ttx_get_session_token() {
             'Content-Type' => 'application/json; charset=utf-8',
             'User-Agent'   => 'LavendelhygieneTripletex/' . (defined('LH_TTX_VERSION') ? LH_TTX_VERSION : 'dev'),
         ],
-        'body'    => wp_json_encode(new stdClass()), // body required by some stacks; empty JSON
+        'body'    => wp_json_encode([
+            'consumerToken'  => $consumer,
+            'employeeToken'  => $employee,
+            'expirationDate' => $expirationDate,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     ];
 
     $res = wp_remote_request($url, $args);
@@ -145,20 +164,14 @@ function ttx_get_session_token() {
         ]);
     }
 
-    // TODO: update body parsing
-    // body has format:
+    // Response body format
     // { "value": { ... "expirationDate": "2020-01-01", "token": "eyJ0b2...0=", ... }}
 
     $data = json_decode($body, true);
     $data = ttx_unwrap($data);
 
-    // Common shapes: { token: "...", expirationDate: "YYYY-MM-DDThh:mm:ss" }
     $token = (string) ($data['token'] ?? '');
-    $expiresEpoch = 0;
-    if (!empty($data['expirationDate'])) {
-        $ts = strtotime($data['expirationDate']);
-        if ($ts !== false) $expiresEpoch = $ts;
-    }
+    $expiresStr = (string) ($data['expirationDate'] ?? '');
 
     if ($token === '') {
         LH_Ttx_Logger::error('Tripletex session create: token missing', ['req_id' => $rid]);
@@ -166,14 +179,12 @@ function ttx_get_session_token() {
     }
 
     if (function_exists('lh_ttx_set_cached_session')) {
-        // Default to +55 minutes if expiration missing (a typical session lifetime)
-        if ($expiresEpoch <= time()) $expiresEpoch = time() + 55 * 60;
-        lh_ttx_set_cached_session($token, $expiresEpoch);
+        lh_ttx_set_cached_session($token, $expiresStr);
     }
 
     LH_Ttx_Logger::info('Tripletex session created', [
         'req_id' => $rid,
-        'exp'    => $expiresEpoch,
+        'exp'    => $expiresStr,
     ]);
 
     return $token;

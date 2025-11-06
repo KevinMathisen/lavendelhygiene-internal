@@ -41,7 +41,7 @@ register_activation_hook(__FILE__, function(){
     add_option(LH_TTX_OPT_COMPANY_ID,      0,   '', 'no');
     add_option(LH_TTX_OPT_WEBHOOK_SECRET,  '',  '', 'no');
     add_option(LH_TTX_OPT_SESSION_TOKEN,   '',  '', 'no');
-    add_option(LH_TTX_OPT_SESSION_EXPIRES, 0,   '', 'no');
+    add_option(LH_TTX_OPT_SESSION_EXPIRES, '2000-01-01',   '', 'no');
 });
 
 /**
@@ -94,16 +94,16 @@ function lh_ttx_set_webhook_secret(string $val): void { lh_ttx_set_option(LH_TTX
 function lh_ttx_get_cached_session(): array {
     return [
         'token'   => (string) lh_ttx_get_option(LH_TTX_OPT_SESSION_TOKEN, ''),
-        'expires' => (int)    lh_ttx_get_option(LH_TTX_OPT_SESSION_EXPIRES, 0),
+        'expires' => (int)    lh_ttx_get_option(LH_TTX_OPT_SESSION_EXPIRES, '2000-01-01'),
     ];
 }
-function lh_ttx_set_cached_session(string $token, int $expiresEpoch): void {
+function lh_ttx_set_cached_session(string $token, int $expiresStr): void {
     lh_ttx_set_option(LH_TTX_OPT_SESSION_TOKEN, $token);
-    lh_ttx_set_option(LH_TTX_OPT_SESSION_EXPIRES, $expiresEpoch);
+    lh_ttx_set_option(LH_TTX_OPT_SESSION_EXPIRES, $expiresStr);
 }
 function lh_ttx_clear_cached_session(): void {
     lh_ttx_set_option(LH_TTX_OPT_SESSION_TOKEN, '');
-    lh_ttx_set_option(LH_TTX_OPT_SESSION_EXPIRES, 0);
+    lh_ttx_set_option(LH_TTX_OPT_SESSION_EXPIRES, '2000-01-01');
 }
 
 /**
