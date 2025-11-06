@@ -46,6 +46,9 @@ final class LavendelHygiene_Core {
         if ( ! get_role( 'customer' ) ) {
             add_role( 'customer', 'Customer', [ 'read' => true, 'level_0' => true ] );
         }
+        if ( ! get_option( 'lavendelhygiene_notify_email' ) ) {
+            add_option( 'lavendelhygiene_notify_email', get_option( 'admin_email' ) );
+        }
         flush_rewrite_rules();
     }
 
@@ -140,6 +143,8 @@ class LavendelHygiene_AdminApplications {
 
         add_action( 'admin_post_lavendelhygiene_approve', [ $this, 'handle_approve' ] );
         add_action( 'admin_post_lavendelhygiene_deny', [ $this, 'handle_deny' ] );
+
+        add_action( 'admin_post_lavendelhygiene_save_notify_email', [ $this, 'handle_save_notify_email' ] );
     }
 
     public function admin_menu() {
@@ -164,17 +169,31 @@ class LavendelHygiene_AdminApplications {
         ] );
         $users = $q->get_results();
         $svc = new LavendelHygiene_TripletexLinkingService();
+        $notify_email = get_option( 'lavendelhygiene_notify_email', get_option( 'admin_email' ) );
 
         ?>
         <div class="wrap">
             <h1><?php esc_html_e( 'Pending Users', 'lavendelhygiene' ); ?></h1>
 
+            <?php if ( isset($_GET['notify_email_updated']) ) : ?>
+                <div class="notice notice-success"><p><?php esc_html_e('Notification email updated.', 'lavendelhygiene'); ?></p></div>
+            <?php endif; ?>
             <?php if ( isset($_GET['tripletex_updated']) ) : ?>
                 <div class="notice notice-success"><p><?php esc_html_e('Tripletex ID updated.', 'lavendelhygiene'); ?></p></div>
             <?php endif; ?>
             <?php if ( isset($_GET['tripletex_created']) ) : ?>
                 <div class="notice notice-success"><p><?php esc_html_e('Customer created in Tripletex.', 'lavendelhygiene'); ?></p></div>
             <?php endif; ?>
+
+            <h3><?php esc_html_e('Notification settings', 'lavendelhygiene'); ?></h3>
+            <form method="post" action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" style="margin-bottom:16px;">
+                <input type="hidden" name="action" value="lavendelhygiene_save_notify_email" />
+                <?php wp_nonce_field( 'lavendelhygiene_save_notify_email' ); ?>
+                <label for="lavh_notify_email"><strong><?php esc_html_e('Email address to notify when new users register', 'lavendelhygiene'); ?></strong></label>
+                <input type="email" id="lavh_notify_email" name="notify_email" value="<?php echo esc_attr( $notify_email ); ?>" class="regular-text" required />
+                <p class="description"><?php esc_html_e('This email address will receive an email when a new user registers.', 'lavendelhygiene'); ?></p>
+                <button type="submit" class="button button-primary"><?php esc_html_e('Save', 'lavendelhygiene'); ?></button>
+            </form>
 
             <?php if ( empty( $users ) ) : ?>
                 <p><?php esc_html_e( 'No pending applications.', 'lavendelhygiene' ); ?></p>
@@ -304,6 +323,23 @@ class LavendelHygiene_AdminApplications {
         }
 
         wp_safe_redirect( admin_url( 'users.php?page=lavendelhygiene-applications&tripletex_updated=1' ) );
+        exit;
+    }
+
+    public function handle_save_notify_email() {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( __( 'No permission.', 'lavendelhygiene' ) );
+        }
+        check_admin_referer( 'lavendelhygiene_save_notify_email' );
+
+        $email = isset($_POST['notify_email']) ? sanitize_email( wp_unslash( $_POST['notify_email'] ) ) : '';
+        if ( is_email( $email ) ) {
+            update_option( 'lavendelhygiene_notify_email', $email );
+        } else {
+            // If invalid/empty let user know
+            wp_die( __( 'Invalid email address.', 'lavendelhygiene' ) );
+        }
+        wp_safe_redirect( admin_url( 'users.php?page=lavendelhygiene-applications&notify_email_updated=1' ) );
         exit;
     }
 
@@ -739,7 +775,10 @@ class LavendelHygiene_Notifications {
         if ( ! $is_woo_registration ) return;
 
         // Internal notification
-        $admin_to      = get_option( 'admin_email' ); // TODO: send to correct email here. 
+        $admin_to = sanitize_email( (string) get_option( 'lavendelhygiene_notify_email' ) );
+        if ( ! is_email( $admin_to ) ) {
+            $admin_to = get_option( 'admin_email' );
+        }
         $subject_admin = sprintf( __( 'Ny bedrift-registrering: %s', 'lavendelhygiene' ), $user->user_login );
         $body_admin    = sprintf(
             "Ny registrering venter godkjenning.\n\nBruker: %s\nE-post: %s\nSelskap: %s\nOrg.nr: %s\n",
