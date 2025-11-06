@@ -34,7 +34,6 @@ final class LavendelHygiene_Core {
         new LavendelHygiene_ProfileFields();
         new LavendelHygiene_Gating();
         new LavendelHygiene_Notifications();
-        new LavendelHygiene_Ajax();
 
         // Minor label tweak
         add_filter( 'woocommerce_countries_tax_or_vat', fn($label) => 'MVA (25%)' );
@@ -234,39 +233,6 @@ class LavendelHygiene_AdminApplications {
                     <?php endforeach; ?>
                     </tbody>
                 </table>
-
-                <script>
-                (function(){
-                    const table = document.getElementById('lavendelhygiene-apps');
-                    if(!table) return;
-                    table.addEventListener('submit', function(e){
-                        const form = e.target.closest('form.lavendelhygiene-ttx-form');
-                        if(!form) return;
-                        e.preventDefault();
-                        const msg = form.querySelector('.lavendelhygiene-ttx-msg');
-                        msg.textContent = '';
-                        const data = new FormData(form);
-                        data.set('action', 'lavendelhygiene_set_tripletex_id'); // AJAX action
-                        fetch(ajaxurl, {
-                            method: 'POST',
-                            credentials: 'same-origin',
-                            body: data
-                        })
-                        .then(r => r.json())
-                        .then(json => {
-                            if(json && json.success){
-                                msg.textContent = json.data && json.data.message ? json.data.message : 'Saved';
-                                msg.style.color = 'green';
-                            } else {
-                                const err = (json && json.data && json.data.message) ? json.data.message : 'Error';
-                                msg.textContent = err;
-                                msg.style.color = 'red';
-                            }
-                        })
-                        .catch(() => { msg.textContent = 'Network error'; msg.style.color='red'; });
-                    });
-                })();
-                </script>
             <?php endif; ?>
         </div>
         <?php
@@ -338,40 +304,6 @@ class LavendelHygiene_AdminApplications {
         exit;
     }
 
-}
-
-/* ---------- AJAX ---------- */
-
-class LavendelHygiene_Ajax {
-    public function __construct() {
-        add_action( 'wp_ajax_lavendelhygiene_set_tripletex_id', [ $this, 'ajax_set_tripletex_id' ] );
-    }
-
-    public function ajax_set_tripletex_id() {
-        if ( ! current_user_can( 'promote_users' ) && ! current_user_can( 'manage_woocommerce' ) ) {
-            wp_send_json_error( [ 'message' => __( 'No permission.', 'lavendelhygiene' ) ], 403 );
-        }
-
-        $user_id = isset($_POST['user_id']) ? absint($_POST['user_id']) : 0;
-        if ( ! $user_id ) {
-            wp_send_json_error( [ 'message' => __( 'Invalid user.', 'lavendelhygiene' ) ], 400 );
-        }
-
-        check_ajax_referer( 'lavendelhygiene_set_tripletex_id_' . $user_id );
-
-        $svc = new LavendelHygiene_TripletexLinkingService();
-        $res = $svc->save_ttx_id_from_input( $user_id, (string) ($_POST['tripletex_customer_id'] ?? ''), get_current_user_id() );
-
-        if ( is_wp_error($res) ) {
-            wp_send_json_error( [ 'message' => $res->get_error_message() ], 409 );
-        }
-
-        wp_send_json_success( [
-            'message' => $res === 'cleared'
-                ? __( 'Tripletex ID cleared.', 'lavendelhygiene' )
-                : __( 'Tripletex ID saved.', 'lavendelhygiene' ),
-        ] );
-    }
 }
 
 /* ---------- User profile fields ---------- */
