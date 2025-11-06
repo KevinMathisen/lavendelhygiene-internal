@@ -12,7 +12,7 @@ final class LH_Ttx_Webhooks {
                 [
                     'methods'             => 'POST',
                     'callback'            => [$this, 'handle_event'],
-                    'permission_callback' => '__return_true',
+                    'permission_callback' => [$this, 'permission_check'],
                 ]
             );
         });
@@ -20,11 +20,13 @@ final class LH_Ttx_Webhooks {
 
     /* ------------------------ Handler ------------------------ */
 
-    public function handle_event(\WP_REST_Request $request) {
+    public function permission_check(\WP_REST_Request $request) {
         $auth = $this->verify_auth($request);
-        if (is_wp_error($auth)) {
-            return new \WP_REST_Response(['error' => $auth->get_error_message()], 401);
-        }
+        return is_wp_error($auth) ? $auth : true;
+    }
+
+    public function handle_event(\WP_REST_Request $request) {
+        // auth handled by permission_check
 
         $data = $this->decode_json($request);
         if (is_wp_error($data)) {
