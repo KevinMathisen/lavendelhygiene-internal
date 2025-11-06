@@ -437,10 +437,10 @@ function ttx_products_get_price(int $product_id) {
 function ttx_products_get_stock(int $product_id, ?int $warehouse_id = null) {
     if ($product_id <= 0) return ttx_error('ttx_id_invalid', __('Ugyldig produkt-ID.', 'lh-ttx'));
 
-    $res2 = ttx_get("/product/{$product_id}", [
+    $res = ttx_get("/product/{$product_id}", [
         'fields' => 'id,availableStock',
     ]);
-    if (is_wp_error($res2)) return $res2;
+    if (is_wp_error($res)) return $res;
 
     if ($res['availableStock'] !== null) return (int) $res['availableStock'];
 
