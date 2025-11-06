@@ -24,47 +24,6 @@ if (!class_exists('LH_Ttx_Logger')) {
 final class LH_Ttx_Customers_Service {
 
     /**
-     * Find a Tripletex customer by org number and link the WP user if found.
-     *
-     * @param int $user_id
-     * @return int|\WP_Error Tripletex customer ID if linked, or WP_Error
-     */
-    public function check_and_link_by_orgnr(int $user_id) {
-        // 1) Read orgnr from user meta (your core plugin saves META_ORGNR)
-        $orgnr_raw = (string) get_user_meta($user_id, 'orgnr', true);
-        $orgnr     = preg_replace('/\D+/', '', $orgnr_raw);
-
-        if ($orgnr === '') {
-            return new WP_Error('orgnr_missing', __('Organisasjonsnummer mangler.', 'lh-ttx'));
-        }
-
-        // 2) Look up in Tripletex
-        //    Implemented in includes/api.php (your ttx_customers_find_by_orgnr)
-        $found = ttx_customers_find_by_orgnr($orgnr, ['id','name','organizationNumber','version']);
-
-        if (is_wp_error($found)) return $found;
-        if ($found === null) {
-            return new WP_Error('ttx_not_found', __('Finner ikke kunde i Tripletex.', 'lh-ttx'));
-        }
-
-        $ttx_id = (int) ($found['id'] ?? 0);
-        if ($ttx_id <= 0) {
-            return new WP_Error('ttx_bad_response', __('Ugyldig svar fra Tripletex.', 'lh-ttx'));
-        }
-
-        // 3) Link to user
-        $this->link_user_to_tripletex($user_id, $ttx_id);
-
-        LH_Ttx_Logger::info('Linked user to Tripletex by orgnr', [
-            'user_id' => $user_id,
-            'ttx_id'  => $ttx_id,
-            'orgnr'   => $orgnr,
-        ]);
-
-        return $ttx_id;
-    }
-
-    /**
      * Create a new customer in Tripletex from WP user profile and link it.
      *
      * @param int $user_id
@@ -136,12 +95,12 @@ final class LH_Ttx_Customers_Service {
     private function link_user_to_tripletex(int $user_id, int $ttx_id): void {
         update_user_meta($user_id, LH_TTX_META_TRIPLETEX_ID, $ttx_id);
 
-        // Mirror your core plugin’s audit fields if helpful:
+        // Mirror LH core audit fields
         update_user_meta($user_id, 'tripletex_linked_by', get_current_user_id());
         update_user_meta($user_id, 'tripletex_linked_at', current_time('mysql'));
 
         /**
-         * Maintain compatibility with your core plugin’s actions if loaded.
+         * Maintain compatibility with LH core actions
          */
         do_action('lavendelhygiene_tripletex_linked', $user_id, (string) $ttx_id, get_current_user_id());
     }

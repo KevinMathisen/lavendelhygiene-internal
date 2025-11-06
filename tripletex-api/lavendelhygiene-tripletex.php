@@ -211,36 +211,15 @@ final class LH_Ttx_Admin_Applications_Hooks {
 
     public function init(): void {
         // Non-AJAX handlers (form posts)
-        add_action('admin_post_lavendelhygiene_check_tripletex',  [$this, 'handle_check_in_tripletex']);
         add_action('admin_post_lavendelhygiene_create_tripletex', [$this, 'handle_create_in_tripletex']);
 
         // AJAX handlers (if you wire from JS)
-        add_action('wp_ajax_lavendelhygiene_check_tripletex',  [$this, 'ajax_check_in_tripletex']);
         add_action('wp_ajax_lavendelhygiene_create_tripletex', [$this, 'ajax_create_in_tripletex']);
     }
 
     /** Capability gate for app actions */
     private function can_manage(): bool {
         return current_user_can('manage_woocommerce') || current_user_can('promote_users') || current_user_can('list_users');
-    }
-
-    /** Non-AJAX: Check if user exists in Tripletex (by orgnr), then link */
-    public function handle_check_in_tripletex(): void {
-        if (!$this->can_manage()) wp_die(__('No permission.', 'lh-ttx'));
-
-        $user_id = isset($_GET['user_id']) ? absint($_GET['user_id']) : 0;
-        check_admin_referer('lavendelhygiene_check_tripletex_' . $user_id);
-
-        $customers = $this->svc->customers();
-        $res = $customers->check_and_link_by_orgnr($user_id);
-
-        if (is_wp_error($res)) {
-            LH_Ttx_Logger::error('Tripletex check failed', ['user_id' => $user_id, 'error' => $res->get_error_message()]);
-            wp_die($res->get_error_message());
-        }
-
-        wp_safe_redirect(admin_url('users.php?page=lavendelhygiene-applications&tripletex_checked=1'));
-        exit;
     }
 
     /** Non-AJAX: Create in Tripletex and link */
@@ -262,21 +241,7 @@ final class LH_Ttx_Admin_Applications_Hooks {
         exit;
     }
 
-    /** AJAX variants (JSON) */
-    public function ajax_check_in_tripletex(): void {
-        if (!$this->can_manage()) wp_send_json_error(['message' => __('No permission.', 'lh-ttx')], 403);
-        $user_id = isset($_POST['user_id']) ? absint($_POST['user_id']) : 0;
-        check_ajax_referer('lavendelhygiene_check_tripletex_' . $user_id);
-
-        $customers = $this->svc->customers();
-        $res = $customers->check_and_link_by_orgnr($user_id);
-
-        if (is_wp_error($res)) {
-            wp_send_json_error(['message' => $res->get_error_message()], 409);
-        }
-        wp_send_json_success(['message' => __('Kunde lenket mot Tripletex.', 'lh-ttx')]);
-    }
-
+    /** AJAX variant (JSON) */
     public function ajax_create_in_tripletex(): void {
         if (!$this->can_manage()) wp_send_json_error(['message' => __('No permission.', 'lh-ttx')], 403);
         $user_id = isset($_POST['user_id']) ? absint($_POST['user_id']) : 0;
