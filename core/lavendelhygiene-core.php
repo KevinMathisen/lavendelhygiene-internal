@@ -203,11 +203,7 @@ class LavendelHygiene_AdminApplications {
                             'lavendelhygiene_deny_' . $u->ID
                         );
                         $set_nonce = wp_create_nonce( 'lavendelhygiene_set_tripletex_id_' . $u->ID );
-                        // tripletex check and create calls Tripletex plugin
-                        $ttx_check_url  = wp_nonce_url(
-                            admin_url( 'admin-post.php?action=lavendelhygiene_check_tripletex&user_id=' . $u->ID ),
-                            'lavendelhygiene_check_tripletex_' . $u->ID
-                        );
+                        // tripletex create calls Tripletex plugin
                         $ttx_create_url = wp_nonce_url(
                             admin_url( 'admin-post.php?action=lavendelhygiene_create_tripletex&user_id=' . $u->ID ),
                             'lavendelhygiene_create_tripletex_' . $u->ID
@@ -232,7 +228,6 @@ class LavendelHygiene_AdminApplications {
                                 <a href="<?php echo esc_url( $approve_url ); ?>" class="button button-primary"><?php esc_html_e( 'Approve', 'lavendelhygiene' ); ?></a>
                                 <a href="<?php echo esc_url( $deny_url ); ?>" class="button"><?php esc_html_e( 'Deny', 'lavendelhygiene' ); ?></a>
                                 <a href="<?php echo esc_url( get_edit_user_link( $u->ID ) ); ?>" class="button"><?php esc_html_e( 'View', 'lavendelhygiene' ); ?></a>
-                                <a href="<?php echo esc_url( $ttx_check_url ); ?>" class="button"><?php esc_html_e( 'Check in Tripletex', 'lavendelhygiene' ); ?></a>
                                 <a href="<?php echo esc_url( $ttx_create_url ); ?>" class="button button-secondary"><?php esc_html_e( 'Create in Tripletex', 'lavendelhygiene' ); ?></a>
                             </td>
                         </tr>
