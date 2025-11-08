@@ -134,12 +134,12 @@ final class LH_Ttx_Customers_Service {
 
         // Tripletex Customer object (partial allowed on PUT)
         $payload = [
-            'name'               => $name ?: null,
+            'name'               => $for_create ? ($name ?: null) : null,
             'organizationNumber' => $for_create ? ($orgnr ?: null) : null,
             'email'              => $email ?: null,
             'invoiceEmail'       => $for_create ? ($email ?: null) : null,
             'phoneNumber'        => $phone ?: null,
-            'invoiceSendMethod' =>  ($use_ehf === 'yes' ? 'EHF' : 'EMAIL'),
+            'invoiceSendMethod' =>  $for_create ? ($use_ehf === 'yes' ? 'EHF' : 'EMAIL') : null,
             'postalAddress' => [    
                 'addressLine1' => $inv_addr_1 ?: null,
                 'postalCode'   => $inv_post ?: null,
