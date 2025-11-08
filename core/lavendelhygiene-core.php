@@ -763,10 +763,10 @@ class LavendelHygiene_Gating {
 
 class LavendelHygiene_Notifications {
     public function __construct() {
-        add_action( 'user_register', [ $this, 'email_on_registration' ], 30 );
+        add_action( 'woocommerce_created_customer', [ $this, 'email_on_registration' ], 25, 3 );
     }
 
-    public function email_on_registration( $user_id ) {
+    public function email_on_registration( $user_id, $new_customer_data = [], $password_generated = false ) {
         $user = get_userdata( $user_id );
         if ( ! $user ) return;
 
