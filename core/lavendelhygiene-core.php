@@ -634,15 +634,37 @@ class LavendelHygiene_Registration {
             }
         }
 
-        // orgnr: 9 digits
+        // orgnr: norwegian mod11 checksum
         if ( ! empty( $_POST['orgnr'] ) ) {
-            $orgnr = preg_replace( '/\D+/', '', (string) $_POST['orgnr'] );
-            if ( strlen( $orgnr ) !== 9 ) {
-                $errors->add( 'orgnr_invalid', __( 'Organisasjonsnummer må være 9 siffer.', 'lavendelhygiene' ) );
+            $raw = (string) $_POST['orgnr'];
+            if ( ! $this->is_valid_no_orgnr( $raw ) ) {
+                $errors->add( 'orgnr_invalid', __( 'Ugyldig organisasjonsnummer.', 'lavendelhygiene' ) );
             }
         }
 
         return $errors;
+    }
+
+    private function is_valid_no_orgnr( string $raw ): bool {
+        $digits = preg_replace( '/\D+/', '', $raw );
+        if ( strlen( $digits ) !== 9 ) return false;
+
+        // Split digits
+        $d = array_map( 'intval', str_split( $digits ) );
+        // Weights for the first 8 digits
+        $w = [3,2,7,6,5,4,3,2];
+
+        $sum = 0;
+        for ( $i = 0; $i < 8; $i++ ) {
+            $sum += $d[$i] * $w[$i];
+        }
+        $rem = $sum % 11;
+        $k   = 11 - $rem;
+
+        if ( $k === 11 ) $k = 0;     // check digit 0 when remainder is 0
+        if ( $k === 10 ) return false; // invalid number
+
+        return $d[8] === $k;
     }
 
     public function save_register_fields( $customer_id ) {
