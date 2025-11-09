@@ -139,7 +139,9 @@ final class LH_Ttx_Customers_Service {
             'email'              => $email ?: null,
             'invoiceEmail'       => $for_create ? ($email ?: null) : null,
             'phoneNumber'        => $phone ?: null,
-            'invoiceSendMethod' =>  $for_create ? ($use_ehf === 'yes' ? 'EHF' : 'EMAIL') : null,
+            // 'invoiceSendMethod' =>  $for_create ? ($use_ehf === 'yes' ? 'EHF' : 'EMAIL') : null,
+            'invoiceSendMethod' =>  $for_create ? ('EMAIL') : null, // TODO: only use email for testing. For production, we need EHF option.
+            'isPrivateIndividual' => $for_create ? (FALSE) : null,
             'postalAddress' => [    
                 'addressLine1' => $inv_addr_1 ?: null,
                 'postalCode'   => $inv_post ?: null,
@@ -256,8 +258,8 @@ final class LH_Ttx_Orders_Service {
             $line = [
                 'count'     => $qty,
                 // Tripletex uses Money on unitPrice: {value, currency}
-                'unitPriceExcludingVatCurrency' => (float) wc_format_decimal($unit_ex, 6),
-                'currency' => ['code' => $currency],
+                'unitPriceExcludingVatCurrency' => (float) wc_format_decimal($unit_ex, 6), // might default to correct
+                'currency' => ['code' => $currency], // might default to correct
             ];
 
             $ttx_product_id = $this->get_tripletex_product_id_from_wc_product($product);
