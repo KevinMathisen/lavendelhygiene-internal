@@ -466,8 +466,6 @@ class LavendelHygiene_Registration {
     public function register_fields() {
         if ( is_user_logged_in() ) return;
 
-        // TODO: add phone number field
-
         // Sector options
         $sector_options = [
             'Datasenter'                   => 'Datasenter',
@@ -522,6 +520,12 @@ class LavendelHygiene_Registration {
                     value="<?php echo $posted( 'company_name' ); ?>" required />
             </p>
 
+            <p class="form-row form-row-wide">
+                <label for="reg_phone"><?php esc_html_e( 'Telefon', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
+                <input type="tel" class="input-text" name="phone" id="reg_phone"
+                    value="<?php echo $posted( 'phone' ); ?>" required />
+            </p>
+
             <!-- Orgnr 50% + Sector 50% -->
             <div class="lavendelhygiene-two">
                 <p class="form-row">
@@ -530,8 +534,8 @@ class LavendelHygiene_Registration {
                         value="<?php echo $posted( 'orgnr' ); ?>" required />
                 </p>
                 <p class="form-row">
-                    <label for="company_sector"><?php esc_html_e( 'Legg inn Bransje/Næring til bedrift', 'lavendelhygiene' ); ?></label>
-                    <select name="company_sector" id="company_sector" class="input-select">
+                    <label for="company_sector"><?php esc_html_e( 'Bransje/Næring', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
+                    <select name="company_sector" id="company_sector" class="input-select" required>
                         <option value=""><?php esc_html_e( 'Velg…', 'lavendelhygiene' ); ?></option>
                         <?php foreach ( $sector_options as $value => $label ) : ?>
                             <option value="<?php echo esc_attr( $value ); ?>" <?php selected( $posted_sector, $value ); ?>>
@@ -608,13 +612,25 @@ class LavendelHygiene_Registration {
 
         // Required custom fields
         $required = [
-            'company_name','orgnr',
-            'billing_address_1','billing_postcode','billing_city','billing_country',
-            'shipping_address_1','shipping_postcode','shipping_city','shipping_country'
+            'company_name'       => __( 'Firmanavn', 'lavendelhygiene' ),
+            'company_sector'     => __( 'Bransje/Næring', 'lavendelhygiene' ),
+            'orgnr'              => __( 'Organisasjonsnummer', 'lavendelhygiene' ),
+            'phone'              => __( 'Telefon', 'lavendelhygiene' ),
+            'billing_address_1'  => __( 'Fakturadresse', 'lavendelhygiene' ),
+            'billing_postcode'   => __( 'Faktura postnummer', 'lavendelhygiene' ),
+            'billing_city'       => __( 'Faktura poststed', 'lavendelhygiene' ),
+            'billing_country'    => __( 'Faktura land', 'lavendelhygiene' ),
+            'shipping_address_1' => __( 'Leveringsadresse', 'lavendelhygiene' ),
+            'shipping_postcode'  => __( 'Levering postnummer', 'lavendelhygiene' ),
+            'shipping_city'      => __( 'Levering poststed', 'lavendelhygiene' ),
+            'shipping_country'   => __( 'Levering land', 'lavendelhygiene' ),
         ];
-        foreach ( $required as $key ) {
+        foreach ( $required as $key => $label ) {
             if ( empty( $_POST[ $key ] ) ) {
-                $errors->add( 'required_' . $key, sprintf( __( 'Vennligst fyll inn %s.', 'lavendelhygiene' ), esc_html( $key ) ) );
+                $errors->add(
+                    'required_' . $key,
+                    sprintf( __( 'Vennligst fyll inn: %s.', 'lavendelhygiene' ), esc_html( $label ) )
+                );
             }
         }
 
@@ -635,6 +651,7 @@ class LavendelHygiene_Registration {
             'company_name'       => 'billing_company',
             'orgnr'              => LavendelHygiene_Core::META_ORGNR,
             'company_sector'     => LavendelHygiene_Core::META_SECTOR,
+            'phone'              => 'billing_phone',
 
             'billing_address_1'  => 'billing_address_1',
             'billing_postcode'   => 'billing_postcode',
