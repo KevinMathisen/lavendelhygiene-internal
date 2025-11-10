@@ -64,18 +64,29 @@ final class LH_Ttx_Customers_Service {
             return new WP_Error('ttx_id_not_set', __('Kunde har ikke satt tripletex id.', 'lh-ttx'));
         }
 
-        // perform partial update with changed fields
-        $local   = $this->map_user_to_tripletex_payload($user_id, ['for_create' => false]);
-        $version = null; 
+        // get current tripletex customer data
+        $remote = ttx_customers_get($ttx_id);
+        if (is_wp_error($remote)) return $remote;
 
-        $res = ttx_customers_update($ttx_id, $local, $version);
+        // 2) Build minimal update payload with only changed fields
+        $update = $this->build_customer_update_payload_from_map($user_id, (array) $remote);
+
+        if (empty($update)) {
+            LH_Ttx_Logger::info('Tripletex: no customer changes to sync', [
+                'user_id' => $user_id,
+                'ttx_id'  => $ttx_id,
+            ]);
+            return true;
+        }
+
+        $res = ttx_customers_update($ttx_id, $update, null);
         if (is_wp_error($res)) return $res;
 
         LH_Ttx_Logger::info('Synced user to Tripletex', [
             'user_id' => $user_id,
             'ttx_id'  => $ttx_id,
+            'fields'  => array_keys($update),
         ]);
-
         return true;
     }
 
@@ -122,12 +133,14 @@ final class LH_Ttx_Customers_Service {
         $phone       = (string) get_user_meta($user_id, 'billing_phone', true);
 
         $inv_addr_1  = (string) get_user_meta($user_id, 'billing_address_1', true);
+        $inv_addr_2  = (string) get_user_meta($user_id, 'billing_address_2', true);
         $inv_post    = (string) get_user_meta($user_id, 'billing_postcode', true);
         $inv_city    = (string) get_user_meta($user_id, 'billing_city', true);
         $inv_country = (string) get_user_meta($user_id, 'billing_country', true) ?: 'NO';
 
         // Shipping
         $ship_addr_1  = (string) get_user_meta($user_id, 'shipping_address_1', true);
+        $ship_addr_2  = (string) get_user_meta($user_id, 'shipping_address_2', true);
         $ship_post    = (string) get_user_meta($user_id, 'shipping_postcode', true);
         $ship_city    = (string) get_user_meta($user_id, 'shipping_city', true);
         $ship_country = (string) get_user_meta($user_id, 'shipping_country', true) ?: 'NO';
@@ -142,14 +155,16 @@ final class LH_Ttx_Customers_Service {
             // 'invoiceSendMethod' =>  $for_create ? ($use_ehf === 'yes' ? 'EHF' : 'EMAIL') : null,
             'invoiceSendMethod' =>  $for_create ? ('EMAIL') : null, // TODO: only use email for testing. For production, we need EHF option.
             'isPrivateIndividual' => $for_create ? (FALSE) : null,
-            'postalAddress' => [    
+            'postalAddress' => [
                 'addressLine1' => $inv_addr_1 ?: null,
+                'addressLine2' => $inv_addr_2 ?: null,
                 'postalCode'   => $inv_post ?: null,
                 'city'         => $inv_city ?: null,
-                'country'      => [ 'isoAlpha2Code' => $inv_country ], // may not be able to set country
+                'country'      => [ 'isoAlpha2Code' => $inv_country ],
             ],
             'deliveryAddress' => [
                 'addressLine1' => ($ship_addr_1 ?: $inv_addr_1) ?: null,
+                'addressLine2' => ($ship_addr_2 ?: $inv_addr_2) ?: null,
                 'postalCode'   => ($ship_post   ?: $inv_post)   ?: null,
                 'city'         => ($ship_city   ?: $inv_city)   ?: null,
                 'country'      => [ 'isoAlpha2Code' => ($ship_country ?: $inv_country) ],
@@ -166,6 +181,64 @@ final class LH_Ttx_Customers_Service {
         }
 
         return $payload;
+    }
+
+    /**
+     * Build a minimal update payload with only changed fields vs Tripletex.
+     * Avoids sending unchanged postal/delivery addresses (prevents duplicates).
+     */
+    private function build_customer_update_payload_from_map(int $user_id, array $remote): array {
+        $local = $this->map_user_to_tripletex_payload($user_id, ['for_create' => false]);
+        $payload = [];
+
+        foreach (['email', 'phoneNumber'] as $k) {
+            if (isset($local[$k])) {
+                $remoteVal = (string) ($remote[$k] ?? '');
+                $localVal  = (string) $local[$k];
+                $equal = $k === 'phoneNumber'
+                    ? $this->equals_strip_space($localVal, $remoteVal)
+                    : $this->equals_ci_space($localVal, $remoteVal);
+                if (!$equal) $payload[$k] = $localVal;
+            }
+        }
+
+        // Addresses: if any field differs, send the full address (including country).
+        foreach (['postalAddress','deliveryAddress'] as $addrKey) {
+            if (!isset($local[$addrKey])) continue;
+            $remoteAddr = (array) ($remote[$addrKey] ?? []);
+            $localAddr  = (array) $local[$addrKey];
+
+            $different = false;
+            foreach (['addressLine1','addressLine2','postalCode','city'] as $field) {
+                if (!array_key_exists($field, $localAddr)) continue;
+                $l = (string) $localAddr[$field];
+                $r = (string) ($remoteAddr[$field] ?? '');
+                $equal = $field === 'postalCode'
+                    ? $this->equals_strip_space($l, $r)
+                    : $this->equals_ci_space($l, $r);
+                if ($l !== '' && !$equal) { $different = true; break; }
+            }
+
+            if ($different) {
+                $payload[$addrKey] = $localAddr;
+            }
+        }
+
+        return $payload;
+    }
+
+    private function equals_ci_space(string $a, string $b): bool {
+        return $this->norm_ci_space($a) === $this->norm_ci_space($b);
+    }
+    private function equals_strip_space(string $a, string $b): bool {
+        return $this->norm_strip_space($a) === $this->norm_strip_space($b);
+    }
+    private function norm_ci_space(string $v): string {
+        $v = preg_replace('/\s+/', ' ', trim((string) $v));
+        return mb_strtolower($v, 'UTF-8');
+    }
+    private function norm_strip_space(string $v): string {
+        return preg_replace('/\s+/', '', (string) $v);
     }
 }
 
