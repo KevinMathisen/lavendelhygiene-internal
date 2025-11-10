@@ -422,12 +422,25 @@ class LavendelHygiene_ProfileFields {
     }
 
     public function users_col( $cols ) {
-        $cols['b2b_status'] = __( 'Approved?', 'lavendelhygiene' );
-        $cols['tripletex_id'] = __( 'Tripletex ID', 'lavendelhygiene' ); 
+        unset( $cols['name'] ); // remove default name column
+
+        $cols['company'] = __( 'Company', 'lavendelhygiene' );
+        $cols['orgnr']   = __( 'Org.nr', 'lavendelhygiene' );
+        $cols['b2b_status']   = __( 'Approved?', 'lavendelhygiene' );
+        $cols['tripletex_id'] = __( 'Tripletex ID', 'lavendelhygiene' );
+
         return $cols;
     }
 
     public function users_col_content( $output, $column_name, $user_id ) {
+        if ( 'company' === $column_name ) {
+            $val = get_user_meta( $user_id, 'billing_company', true );
+            return $val ? esc_html( $val ) : '—';
+        }
+        if ( 'orgnr' === $column_name ) {
+            $val = get_user_meta( $user_id, LavendelHygiene_Core::META_ORGNR, true );
+            return $val ? esc_html( $val ) : '—';
+        }
         if ( 'tripletex_id' === $column_name ) {
             $val = get_user_meta( $user_id, LavendelHygiene_Core::META_TRIPLETEX_ID, true );
             return $val ? esc_html( $val ) : '—';
