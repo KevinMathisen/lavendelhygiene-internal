@@ -18,6 +18,14 @@ if (!class_exists('LH_Ttx_Logger')) {
     final class LH_Ttx_Logger { public static function info($m,$c=[]){ } public static function error($m,$c=[]){ } }
 }
 
+function ttx_log_attempt(string $phase, array $ctx): void {
+    // Redact any auth header if accidentally passed
+    if (isset($ctx['request']['headers']['Authorization'])) {
+        $ctx['request']['headers']['Authorization'] = '[redacted]';
+    }
+    LH_Ttx_Logger::info("Ttx request: {$phase}", $ctx);
+}
+
 /** Join fields param (array|string) into Tripletex format */
 function ttx_normalize_fields($fields) {
     if (is_array($fields)) return implode(',', array_filter(array_map('trim', $fields)));
@@ -275,9 +283,10 @@ function ttx_request(string $method, string $path, array $args = []) {
 
         if (is_wp_error($res)) {
             // Transport-level error; retry a couple of times with jitter
-            LH_Ttx_Logger::error('Tripletex transport error', [
+            ttx_log_attempt('transport_error', [
+                'method'  => strtoupper($method),
                 'url'     => $url,
-                'attempt' => $attempt,
+                'requestBody' => $bodyArr,
                 'error'   => $res->get_error_message(),
             ]);
             if ($attempt < $maxAttempts) {
@@ -291,6 +300,24 @@ function ttx_request(string $method, string $path, array $args = []) {
         $body   = wp_remote_retrieve_body($res);
         $rid    = wp_remote_retrieve_header($res, 'x-tlx-request-id');
         $retryAfterHeader = wp_remote_retrieve_header($res, 'retry-after');
+
+        $decodedForLog = null;
+        if ($body !== '') {
+            $tmp = json_decode($body, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $decodedForLog = $tmp;
+            }
+        }
+
+        // Log reponse
+        ttx_log_attempt('response', [
+            'method'      => strtoupper($method),
+            'url'         => $url,
+            'status'      => $status,
+            'requestId'   => $rid ?: null,
+            'requestBody' => $bodyArr,
+            'responseBody' => $decodedForLog,
+        ]);
 
         // Success 2xx
         if ($status >= 200 && $status < 300) {
