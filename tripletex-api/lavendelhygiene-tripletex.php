@@ -173,16 +173,6 @@ add_action('plugins_loaded', function () {
         }
     }, 20, 1);
 
-    add_action('edit_user_profile_update', function (int $user_id) use ($services) {
-        $res = $services->customers()->sync_user($user_id);
-        if (is_wp_error($res)) {
-            LH_Ttx_Logger::error('Tripletex customer sync (admin profile edit) failed', [
-                'user_id' => $user_id,
-                'error'   => $res->get_error_message(),
-            ]);
-        }
-    }, 20, 1);
-
     add_action('woocommerce_save_account_details', function (int $user_id) use ($services) {
         $res = $services->customers()->sync_user($user_id);
         if (is_wp_error($res)) {
