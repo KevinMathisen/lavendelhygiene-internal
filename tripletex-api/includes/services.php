@@ -335,12 +335,7 @@ final class LH_Ttx_Orders_Service {
                 'currency' => ['code' => $currency], // might default to correct
             ];
 
-            $ttx_product_id = $this->get_tripletex_product_id_from_wc_product($product);
-            if ($ttx_product_id) {
-                $line['product'] = [ 'id' => $ttx_product_id ];
-            } else {
-                $line['description'] = $item->get_name();
-            }
+            $line['product'] = [ 'id' => $product->get_id() ];
 
             // Discount
             // may calculcate customers discount for product here
@@ -363,17 +358,6 @@ final class LH_Ttx_Orders_Service {
     private function line_total_ex_vat(\WC_Order_Item_Product $item): float {
         return (float) wc_format_decimal((float) $item->get_total(), 6);
     }
-
-    /**
-     * Resolve Tripletex product id from a WC product.
-     */
-    private function get_tripletex_product_id_from_wc_product(?\WC_Product $product): int {
-        if (!$product) return 0;
-        $id = (int) get_post_meta($product->get_id(), '_tripletex_product_id', true);
-        if ($id > 0) return $id;
-
-        return 0;
-    }
 }
 
 /* ========================================================================== */
@@ -393,10 +377,7 @@ final class LH_Ttx_Products_Service {
         $product = wc_get_product($product_id);
         if (!$product) return new WP_Error('product_missing', __('Finner ikke produkt.', 'lh-ttx'));
 
-        $ttx_pid = (int) get_post_meta($product_id, '_tripletex_product_id', true);
-        if ($ttx_pid <= 0) {
-            return new WP_Error('product_not_linked', __('Produktet er ikke linket til Tripletex.', 'lh-ttx'));
-        }
+        $ttx_pid = (int) $product_id;
 
         if (!$new_price) {
             $price = ttx_products_get_price($ttx_pid);
@@ -429,10 +410,7 @@ final class LH_Ttx_Products_Service {
         $product = wc_get_product($product_id);
         if (!$product) return new WP_Error('product_missing', __('Finner ikke produkt.', 'lh-ttx'));
 
-        $ttx_pid = (int) get_post_meta($product_id, '_tripletex_product_id', true);
-        if ($ttx_pid <= 0) {
-            return new WP_Error('product_not_linked', __('Produktet er ikke linket til Tripletex.', 'lh-ttx'));
-        }
+        $ttx_pid = (int) $product_id;
 
         $qty = ttx_products_get_stock($ttx_pid, $warehouse_id);
         if (is_wp_error($qty)) return $qty;

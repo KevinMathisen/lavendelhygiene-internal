@@ -148,13 +148,8 @@ final class LH_Ttx_Webhooks {
     }
 
     private function find_wc_product_by_tripletex_id(int $ttx_product_id): int {
-        $ids = wc_get_products([
-            'limit'      => 1,
-            'status'     => 'any',
-            'meta_key'   => '_tripletex_product_id',
-            'meta_value' => $ttx_product_id,
-            'return'     => 'ids',
-        ]);
-        return is_array($ids) && !empty($ids) ? (int) $ids[0] : 0;
+        // Tripletex product IDs == Woo product/variation IDs
+        $product = wc_get_product($ttx_product_id);
+        return $product ? (int) $product->get_id() : 0;
     }
 }
