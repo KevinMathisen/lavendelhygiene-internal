@@ -34,6 +34,7 @@ final class LavendelHygiene_Core {
         new LavendelHygiene_ProfileFields();
         new LavendelHygiene_Gating();
         new LavendelHygiene_Notifications();
+        new LavendelHygiene_AccountPhoneField();
 
         // Minor label tweak
         add_filter( 'woocommerce_countries_tax_or_vat', fn($label) => 'MVA (25%)' );
@@ -840,6 +841,38 @@ class LavendelHygiene_Notifications {
             get_user_meta( $user_id, LavendelHygiene_Core::META_ORGNR, true )
         );
         wp_mail( $admin_to, $subject_admin, $body_admin );
+    }
+}
+
+class LavendelHygiene_AccountPhoneField {
+    public function __construct() {
+        add_action( 'woocommerce_edit_account_form', [ $this, 'render_field' ] );
+        add_action( 'woocommerce_save_account_details', [ $this, 'save_field' ] );
+    }
+
+    public function render_field() {
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) return;
+        $val = get_user_meta( $user_id, 'billing_phone', true );
+        echo '<p class="form-row form-row-wide">';
+        woocommerce_form_field(
+            'billing_phone',
+            [
+                'type'        => 'tel',
+                'label'       => __( 'Telefon', 'lavendelhygiene' ),
+                'required'    => true,
+                'input_class' => [ 'woocommerce-Input', 'input-text' ],
+                'default'     => $val,
+            ],
+            $val
+        );
+        echo '</p>';
+    }
+
+    public function save_field( $user_id ) {
+        if ( ! isset( $_POST['billing_phone'] ) ) return;
+        $phone = sanitize_text_field( wp_unslash( $_POST['billing_phone'] ) );
+        update_user_meta( $user_id, 'billing_phone', $phone );
     }
 }
 
