@@ -423,8 +423,6 @@ class LavendelHygiene_ProfileFields {
     }
 
     public function users_col( $cols ) {
-        unset( $cols['name'] ); // remove default name column
-
         $cols['company'] = __( 'Company', 'lavendelhygiene' );
         $cols['orgnr']   = __( 'Org.nr', 'lavendelhygiene' );
         $cols['b2b_status']   = __( 'Approved?', 'lavendelhygiene' );
