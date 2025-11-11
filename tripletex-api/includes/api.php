@@ -486,7 +486,36 @@ function ttx_products_get_stock(int $product_id, ?int $warehouse_id = null) {
 
     if ($res['availableStock'] !== null) return (int) $res['availableStock'];
 
-    return ttx_error('ttx_stock_missing', __('Fant ikke lagerstatus for produktet.', 'lh-ttx'), ['response' => $res2]);
+    return ttx_error('ttx_stock_missing', __('Fant ikke lagerstatus for produktet.', 'lh-ttx'), ['response' => $res]);
+}
+
+/**
+ * Get product tripletex id by SKU/product number
+ *
+ * @return int|\WP_Error
+ */
+function ttx_products_get_ttx_id_from_sku(string $product_sku) {
+    $sku = trim($product_sku);
+    if ($sku === '') {
+        return ttx_error('product_sku_invalid', __('Ugyldig produktnummer (SKU).', 'lh-ttx'));
+    }
+
+    $res = ttx_get('/product', [
+        'productNumber' => $sku,
+        'count'         => 1,
+        'fields'        => 'id',
+    ]);
+    if (is_wp_error($res)) return $res;
+
+    if (is_array($res) && !empty($res)) {
+        $first = (array) $res[0];
+        $id = (int) ($first['id'] ?? 0);
+        if ($id > 0) return $id;
+    }
+
+    return ttx_error('ttx_product_not_found', __('Fant ikke Tripletex-produkt for gitt SKU.', 'lh-ttx'), [
+        'sku'      => $sku,
+    ]);
 }
 
 /** -------------------------------------------------------------------------
