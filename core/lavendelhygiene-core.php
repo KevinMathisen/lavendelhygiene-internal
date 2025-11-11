@@ -883,6 +883,22 @@ class LavendelHygiene_AccountPhoneField {
     public function __construct() {
         add_action( 'woocommerce_edit_account_form', [ $this, 'render_field' ] );
         add_action( 'woocommerce_save_account_details', [ $this, 'save_field' ] );
+
+        add_filter( 'woocommerce_shipping_fields', [ $this, 'add_shipping_phone_field' ] );
+    }
+
+    public function add_shipping_phone_field( $fields ) {
+        if ( ! isset( $fields['shipping_phone'] ) ) {
+            $fields['shipping_phone'] = [
+                'type'        => 'tel',
+                'label'       => __( 'Telefon (levering)', 'lavendelhygiene' ),
+                'required'    => true,
+                'class'       => [ 'form-row-wide' ],
+                'priority'    => 120,
+                'validate'    => [ 'phone' ],
+            ];
+        }
+        return $fields;
     }
 
     public function render_field() {
