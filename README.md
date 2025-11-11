@@ -147,7 +147,7 @@ curl -X POST "$BASE/event/subscription" \
     -d '{
           "event": "product.update",
           "targetUrl": "'$TARGET_URL'",
-          "fields": "priceExcludingVatCurrency",
+          "fields": "number,priceExcludingVatCurrency",
           "authHeaderName": "'$CALLBACK_AUTH_NAME'",
           "authHeaderValue": "'$CALLBACK_AUTH_VALUE'"
         }'
