@@ -321,13 +321,17 @@ final class LH_Ttx_Orders_Service {
         foreach ($order->get_items() as $item) {
             $product   = $item->get_product();
             $qty       = (float) $item->get_quantity();
-            $total_ex  = $this->line_total_ex_vat($item);
-            $unit_ex   = $qty > 0 ? ($total_ex / $qty) : 0.0;
 
-            $line = [
-                'count'     => $qty,
-                'product'   => [ 'id' => trim((string) $product->get_sku()) ], // TODO use ttx id
-            ];
+            $line = [ 'count' => $qty, ];
+
+            $ttx_product_id = get_tripletex_product_id_from_wc_product($product);
+
+            if (!is_wp_error($ttx_product_id) && $ttx_product_id > 0) {
+                $line['product'] = [ 'id' => (int) $ttx_product_id ];
+            } else {
+                // Fallback: send description only
+                $line['description'] = $item->get_name();
+            }
 
             $lines[] = $line;
         }
@@ -417,7 +421,10 @@ final class LH_Ttx_Products_Service {
         $product = wc_get_product($product_id);
         if (!$product) return new WP_Error('product_missing', __('Finner ikke produkt.', 'lh-ttx'));
 
-        $ttx_pid = (int) $product_id;
+        $ttx_pid = get_tripletex_product_id_from_wc_product($product);
+        if (is_wp_error($ttx_pid) || (int)$ttx_pid <= 0) {
+            return new WP_Error('ttx_product_missing', __('Fant ikke Tripletex-produkt-ID for pris-sync.', 'lh-ttx'));
+        }
 
         if (!$new_price) {
             $price = ttx_products_get_price($ttx_pid);
@@ -450,7 +457,10 @@ final class LH_Ttx_Products_Service {
         $product = wc_get_product($product_id);
         if (!$product) return new WP_Error('product_missing', __('Finner ikke produkt.', 'lh-ttx'));
 
-        $ttx_pid = (int) $product_id;
+        $ttx_pid = get_tripletex_product_id_from_wc_product($product);
+        if (is_wp_error($ttx_pid) || (int)$ttx_pid <= 0) {
+            return new WP_Error('ttx_product_missing', __('Fant ikke Tripletex-produkt-ID for lager-sync.', 'lh-ttx'));
+        }
 
         $qty = ttx_products_get_stock($ttx_pid, $warehouse_id);
         if (is_wp_error($qty)) return $qty;
@@ -468,3 +478,28 @@ final class LH_Ttx_Products_Service {
         return true;
     }
 }
+
+function get_tripletex_product_id_from_wc_product(\WC_Product $product) {
+    if (!$product) { return new WP_Error('wc_product_invalid', __('Ugyldig WooCommerce-produkt.', 'lh-ttx')); }
+
+    $wc_id = (int) $product->get_id();
+
+    $stored = (int) get_post_meta($wc_id, '_tripletex_product_id', true);
+    if ($stored > 0) { return $stored; }
+
+    // Need SKU
+    $sku = trim((string) $product->get_sku());
+    if ($sku === '') { return new WP_Error('sku_missing', __('Produkt mangler SKU for Tripletex-oppslag.', 'lh-ttx')); }
+
+    $ttx_id = ttx_products_get_ttx_id_from_sku($sku);
+    if (is_wp_error($ttx_id)) { return $ttx_id; }
+
+    $ttx_id = (int) $ttx_id;
+    if ($ttx_id <= 0) { return new WP_Error('ttx_id_invalid', __('Ugyldig Tripletex-produkt-ID.', 'lh-ttx')); }
+
+    // Persist mapping
+    update_post_meta($wc_id, '_tripletex_product_id', $ttx_id);
+
+    return $ttx_id;
+}
+
