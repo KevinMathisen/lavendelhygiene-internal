@@ -310,11 +310,12 @@ final class LH_Ttx_Orders_Service {
 
         $payload = [
             'customer'      => [ 'id' => $ttx_customer_id ],
-            'orderDate'     => $order_dt, // TODO: Check how many of these defaults to correct.
-            'currency'      => [ 'code' => $currency ],
-            'yourOrderNumber' => (string) $order->get_order_number(),
-            // TODO: add other possible fields, e.g. delivery terms, references, comments, etc.
+            'status'        => 'NEW',
+            'orderDate'     => $order_dt, 
+            'deliveryDate'  => $order_dt,
         ];
+
+        $payload['invoiceComment'] = $this->compose_invoice_comment($order);
 
         $lines = [];
         foreach ($order->get_items() as $item) {
@@ -325,19 +326,8 @@ final class LH_Ttx_Orders_Service {
 
             $line = [
                 'count'     => $qty,
-                // Tripletex uses Money on unitPrice: {value, currency}
-                'unitPriceExcludingVatCurrency' => (float) wc_format_decimal($unit_ex, 6), // might default to correct
-                'currency' => ['code' => $currency], // might default to correct
+                'product'   => [ 'id' => trim((string) $product->get_sku()) ], // TODO use ttx id
             ];
-
-            $line['product'] = [ 'id' => $product->get_id() ];
-
-            // Discount
-            // may calculcate customers discount for product here
-            // $line['discount'] = 10.0;
-
-            // may set vat type to 25%, or use number 3, but may also not be needed.
-            // $line['vatType'] = [ 'number': '3'];
 
             $lines[] = $line;
         }
@@ -352,6 +342,61 @@ final class LH_Ttx_Orders_Service {
      */
     private function line_total_ex_vat(\WC_Order_Item_Product $item): float {
         return (float) wc_format_decimal((float) $item->get_total(), 6);
+    }
+
+    private function compose_invoice_comment(\WC_Order $order): string {
+        // Comment should contain plain text in following format:
+        //  <order_comments>
+        // 
+        // KONTAKTPERSON LEVERING:
+        // <shipping_first_name> <shipping_last_name> <shipping_phone>
+        //
+        // LEVERINGS ADRESSE:
+        // <shipping_address_1> <shipping_address_2 (optional)>
+        // <shipping_postcode> <shipping_city> <shipping_country> 
+        
+        $customer_note = trim((string) $order->get_customer_note());
+
+        $ship_first = trim((string) $order->get_shipping_first_name());
+        $ship_last  = trim((string) $order->get_shipping_last_name());
+
+        $ship_phone = trim((string) $order->get_meta('shipping_phone'));
+        if ($ship_phone === '') {
+            $ship_phone = trim((string) $order->get_billing_phone());
+        }
+
+        $addr1   = (string) $order->get_shipping_address_1();
+        $addr2   = (string) $order->get_shipping_address_2();
+        $post    = (string) $order->get_shipping_postcode();
+        $city    = (string) $order->get_shipping_city();
+        $country_code = (string) $order->get_shipping_country();
+
+        $lines = [];
+
+        if ($customer_note !== '') {
+            $lines[] = $customer_note;
+            $lines[] = '';
+        }
+
+        $lines[] = 'KONTAKTPERSON LEVERING:';
+        $contactParts = array_filter([$ship_first, $ship_last, $ship_phone], static function($v) {
+            return $v !== null && $v !== '';
+        });
+        $lines[] = count($contactParts) ? implode(' ', $contactParts) : '-';
+
+        $lines[] = '';
+        $lines[] = 'LEVERINGS ADRESSE:';
+        $line1 = trim($addr1 . ($addr2 ? ' ' . $addr2 : ''));
+        if ($line1 !== '') $lines[] = $line1;
+
+        $line2Parts = array_filter([$post, $city, $country], static function($v) {
+            return $v !== null && $v !== '';
+        });
+        if (count($line2Parts)) $lines[] = implode(' ', $line2Parts);
+
+        // trim trailing spaces per line and join with newlines
+        $lines = array_map(static function($s) { return rtrim((string) $s); }, $lines);
+        return implode("\n", $lines);
     }
 }
 
