@@ -149,19 +149,19 @@ add_action('plugins_loaded', function () {
     });
 
     // ------- WooCommerce hooks ------- 
-    add_action('woocommerce_checkout_order_processed', function (int $order_id, array $posted_data, WC_Order $order) use ($services) {
+    add_action('woocommerce_store_api_checkout_order_processed', function (WC_Order $order) use ($services) {
         $orders = $services->orders();
-        $result = $orders->create_remote_order($order_id);
+        $result = $orders->create_remote_order($order->get_id());
 
         if (is_wp_error($result)) {
             LH_Ttx_Logger::error('Tripletex order creation failed', [
-                'order_id' => $order_id,
+                'order_id' => $order->get_id(),
                 'error'    => $result->get_error_message(),
             ]);
             $order->add_order_note(__('Tripletex: Failed to create remote order. Please contact customer and try again.', 'lh-ttx'));
             wc_add_notice(__('Det skjedde en feil i prosesseringen av orderen din. Vennligst kontakt oss.', 'lh-ttx'), 'error');
         }
-    }, 20, 3);
+    }, 20, 1);
 
     add_action('woocommerce_customer_save_address', function (int $user_id) use ($services) {
         $res = $services->customers()->sync_user($user_id);
