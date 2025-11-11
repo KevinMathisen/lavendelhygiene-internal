@@ -64,16 +64,28 @@ final class LH_Ttx_Webhooks {
     /* --------------------- Event types ---------------------- */
 
     private function handle_product_event(string $event, int $ttx_product_id, ?array $value, int $subscriptionId, ?string $requestId) {
-        $product_id = $this->find_wc_product_by_tripletex_id($ttx_product_id);
-
-        if (!$product_id) {
-            LH_Ttx_Logger::info('Webhook product event: no local mapping', [
+        $sku = isset($value['number']) ? trim((string) $value['number']) : '';
+        if ($sku === '') {
+            LH_Ttx_Logger::info('Webhook product event: missing SKU, aborting', [
                 'event'          => $event,
                 'ttx_product_id' => $ttx_product_id,
                 'subscriptionId' => $subscriptionId,
                 'requestId'      => $requestId,
             ]);
-            return new \WP_REST_Response(['ok' => true, 'mapped' => false], 200);
+            return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'missing_sku'], 200);
+        }
+
+        // Find local product by SKU
+        $product_id = $this->find_wc_product_by_sku($sku);
+        if ($product_id <= 0) {
+            LH_Ttx_Logger::info('Webhook product event: no local product with SKU', [
+                'event'          => $event,
+                'sku'            => $sku,
+                'ttx_product_id' => $ttx_product_id,
+                'subscriptionId' => $subscriptionId,
+                'requestId'      => $requestId,
+            ]);
+            return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'sku_not_found'], 200);
         }
 
         if ($event !== 'product.update') {
@@ -147,9 +159,10 @@ final class LH_Ttx_Webhooks {
         return is_array($data) ? $data : [];
     }
 
-    private function find_wc_product_by_tripletex_id(int $ttx_product_id): int {
-        // Tripletex product IDs == Woo product/variation IDs
-        $product = wc_get_product($ttx_product_id);
-        return $product ? (int) $product->get_id() : 0;
+    private function find_wc_product_by_sku(string $sku): int {
+        if ($sku === '') return 0;
+        // Core helper returns first matching product id or 0
+        $id = wc_get_product_id_by_sku($sku);
+        return $id ? (int) $id : 0;
     }
 }
