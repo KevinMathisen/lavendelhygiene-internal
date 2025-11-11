@@ -354,6 +354,7 @@ final class LH_Ttx_Orders_Service {
         // 
         // KONTAKTPERSON LEVERING:
         // <shipping_first_name> <shipping_last_name> <shipping_phone>
+        // <order_email>
         //
         // LEVERINGS ADRESSE:
         // <shipping_address_1> <shipping_address_2 (optional)>
@@ -364,10 +365,12 @@ final class LH_Ttx_Orders_Service {
         $ship_first = trim((string) $order->get_shipping_first_name());
         $ship_last  = trim((string) $order->get_shipping_last_name());
 
-        $ship_phone = trim((string) $order->get_meta('shipping_phone'));
+        $ship_phone = trim((string) $order->get_shipping_phone());
         if ($ship_phone === '') {
             $ship_phone = trim((string) $order->get_billing_phone());
         }
+
+        $order_email = trim((string) $order->get_billing_email());
 
         $addr1   = (string) $order->get_shipping_address_1();
         $addr2   = (string) $order->get_shipping_address_2();
@@ -387,13 +390,16 @@ final class LH_Ttx_Orders_Service {
             return $v !== null && $v !== '';
         });
         $lines[] = count($contactParts) ? implode(' ', $contactParts) : '-';
+        if ($order_email !== '') {
+            $lines[] = $order_email;
+        }
 
         $lines[] = '';
         $lines[] = 'LEVERINGS ADRESSE:';
         $line1 = trim($addr1 . ($addr2 ? ' ' . $addr2 : ''));
         if ($line1 !== '') $lines[] = $line1;
 
-        $line2Parts = array_filter([$post, $city, $country], static function($v) {
+        $line2Parts = array_filter([$post, $city, $country_code], static function($v) {
             return $v !== null && $v !== '';
         });
         if (count($line2Parts)) $lines[] = implode(' ', $line2Parts);
