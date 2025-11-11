@@ -471,6 +471,8 @@ class LavendelHygiene_Registration {
      /**
      * Renders extra registration fields (all labels in Norwegian) and styles the layout:
      * - E-post
+     * - Kontaktperson fornavn + etternavn (TODO)
+     * - Telefon
      * - Firmanavn
      * - Organisasjonsnummer + Bransje/Næring
      * - Bruk EHF
@@ -703,6 +705,9 @@ class LavendelHygiene_Registration {
             if ( isset( $_POST[ $posted ] ) ) {
                 update_user_meta( $customer_id, $meta_key, sanitize_text_field( wp_unslash( $_POST[ $posted ] ) ) );
             }
+        }
+        if ( isset( $_POST['company_name'] ) ) { // also set shipping company to company name
+            update_user_meta($customer_id, 'shipping_company', sanitize_text_field( wp_unslash( $_POST['company_name'] ) ));
         }
 
         // EHF (checkbox)
