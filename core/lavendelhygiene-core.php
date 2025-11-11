@@ -466,6 +466,8 @@ class LavendelHygiene_Registration {
         add_filter( 'woocommerce_registration_errors', [ $this, 'validate_register_fields' ], 10, 3 );
         add_action( 'woocommerce_created_customer', [ $this, 'save_register_fields' ], 10, 3 );
         add_action( 'user_register', [ $this, 'set_pending_role' ], 20 );
+
+        add_filter( 'woocommerce_new_customer_username', [ $this, 'filter_username_company' ], 10, 3 );
     }
 
      /**
@@ -761,6 +763,25 @@ class LavendelHygiene_Registration {
             $user->set_role( LavendelHygiene_Core::PENDING_ROLE );
             update_user_meta( $user_id, LavendelHygiene_Core::META_STATUS, 'pending' );
         }
+    }
+
+    public function filter_username_company( $generated_username, $email, $args ) {
+        if ( empty( $_POST['company_name'] ) ) { return $generated_username; }
+
+        $base = sanitize_user( strtolower( remove_accents( wp_unslash( $_POST['company_name'] ) ) ), true );
+        // Replace spaces and consecutive non-allowed chars with single hyphen
+        $base = preg_replace( '/[^a-z0-9]+/', '-', $base );
+        $base = trim( $base, '-' );
+        if ( $base === '' ) {
+            return $generated_username;
+        }
+
+        // ensure username is unique, if not fall back
+        if ( username_exists( $base ) ) {
+            return $generated_username;
+        }
+
+        return $base;
     }
 }
 
