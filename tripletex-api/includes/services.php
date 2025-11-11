@@ -271,12 +271,7 @@ final class LH_Ttx_Orders_Service {
 
         $ttx_customer_id = $customer_service->get_linked_tripletex_id($user_id);
         if (!$ttx_customer_id) {
-            $link = $customer_service->sync_user($user_id);
-            if (is_wp_error($link)) return $link;
-            $ttx_customer_id = $customer_service->get_linked_tripletex_id($user_id);
-            if (!$ttx_customer_id) {
-                return new WP_Error('link_failed', __('Kunne ikke linke kunde mot Tripletex.', 'lh-ttx'));
-            }
+            return new WP_Error('link_failed', __('Kunne ikke linke kunde mot Tripletex.', 'lh-ttx'));
         }
 
         // Build payload
