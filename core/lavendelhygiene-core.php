@@ -885,6 +885,7 @@ class LavendelHygiene_AccountPhoneField {
         add_action( 'woocommerce_save_account_details', [ $this, 'save_field' ] );
 
         add_filter( 'woocommerce_shipping_fields', [ $this, 'add_shipping_phone_field' ] );
+        add_filter( 'woocommerce_billing_fields', [ $this, 'maybe_hide_billing_email_on_address_edit' ] );
     }
 
     public function add_shipping_phone_field( $fields ) {
@@ -897,6 +898,14 @@ class LavendelHygiene_AccountPhoneField {
                 'priority'    => 120,
                 'validate'    => [ 'phone' ],
             ];
+        }
+        return $fields;
+    }
+
+    public function maybe_hide_billing_email_on_address_edit( $fields ) {
+        if ( function_exists( 'is_account_page' ) && is_account_page()
+            && function_exists( 'is_wc_endpoint_url' ) && is_wc_endpoint_url( 'edit-address' ) ) {
+            unset( $fields['billing_email'] );
         }
         return $fields;
     }
