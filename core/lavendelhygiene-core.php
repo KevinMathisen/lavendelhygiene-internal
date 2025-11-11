@@ -503,6 +503,8 @@ class LavendelHygiene_Registration {
 
         $posted_sector    = $posted( 'company_sector' );
         $use_ehf_checked  = isset( $_POST['use_ehf'] ) ? (bool) $_POST['use_ehf'] : true; // default checked
+        $posted_contact_first   = $posted( 'contact_first_name' );
+        $posted_contact_last    = $posted( 'contact_last_name' );
         ?>
         <style>
             /* Layout helpers */
@@ -536,12 +538,6 @@ class LavendelHygiene_Registration {
                     value="<?php echo $posted( 'company_name' ); ?>" required />
             </p>
 
-            <p class="form-row form-row-wide">
-                <label for="reg_phone"><?php esc_html_e( 'Telefon', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
-                <input type="tel" class="input-text" name="phone" id="reg_phone"
-                    value="<?php echo $posted( 'phone' ); ?>" required />
-            </p>
-
             <!-- Orgnr 50% + Sector 50% -->
             <div class="lavendelhygiene-two">
                 <p class="form-row">
@@ -568,6 +564,28 @@ class LavendelHygiene_Registration {
                     <input type="checkbox" name="use_ehf" value="1" <?php checked( $use_ehf_checked, true ); ?> />
                     <span><?php esc_html_e( 'Motta faktura på EHF', 'lavendelhygiene' ); ?></span>
                 </label>
+            </p>
+
+            <!-- Kontaktperson -->
+            <div class="lavendelhygiene-section-title"><?php esc_html_e( 'Kontaktperson', 'lavendelhygiene' ); ?></div>
+            <div class="lavendelhygiene-two">
+                <p class="form-row">
+                    <label for="contact_first_name"><?php esc_html_e( 'Fornavn', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
+                    <input type="text" class="input-text" name="contact_first_name" id="contact_first_name"
+                        value="<?php echo $posted_contact_first; ?>" required />
+                </p>
+                <p class="form-row">
+                    <label for="contact_last_name"><?php esc_html_e( 'Etternavn', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
+                    <input type="text" class="input-text" name="contact_last_name" id="contact_last_name"
+                        value="<?php echo $posted_contact_last; ?>" required />
+                </p>
+            </div>
+
+            <!-- Phone 100% -->
+            <p class="form-row form-row-wide">
+                <label for="reg_phone"><?php esc_html_e( 'Telefon', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
+                <input type="tel" class="input-text" name="phone" id="reg_phone"
+                    value="<?php echo $posted( 'phone' ); ?>" required />
             </p>
 
             <!-- Fakturaadresse -->
@@ -624,11 +642,10 @@ class LavendelHygiene_Registration {
     }
 
     public function validate_register_fields( $errors, $username, $email ) {
-        // NOTE: Do NOT validate username here; Woo is set to auto-generate from email.
-
-        // Required custom fields
         $required = [
             'company_name'       => __( 'Firmanavn', 'lavendelhygiene' ),
+            'contact_first_name'  => __( 'Kontaktperson fornavn', 'lavendelhygiene' ),
+            'contact_last_name'   => __( 'Kontaktperson etternavn', 'lavendelhygiene' ),
             'company_sector'     => __( 'Bransje/Næring', 'lavendelhygiene' ),
             'orgnr'              => __( 'Organisasjonsnummer', 'lavendelhygiene' ),
             'phone'              => __( 'Telefon', 'lavendelhygiene' ),
@@ -651,11 +668,8 @@ class LavendelHygiene_Registration {
         }
 
         // orgnr: norwegian mod11 checksum
-        if ( ! empty( $_POST['orgnr'] ) ) {
-            $raw = (string) $_POST['orgnr'];
-            if ( ! $this->is_valid_no_orgnr( $raw ) ) {
-                $errors->add( 'orgnr_invalid', __( 'Ugyldig organisasjonsnummer.', 'lavendelhygiene' ) );
-            }
+        if ( ! empty( $_POST['orgnr'] ) && ! $this->is_valid_no_orgnr( (string) $_POST['orgnr'] ) ) {
+            $errors->add( 'orgnr_invalid', __( 'Ugyldig organisasjonsnummer.', 'lavendelhygiene' ) );
         }
 
         return $errors;
@@ -691,6 +705,9 @@ class LavendelHygiene_Registration {
             'company_sector'     => LavendelHygiene_Core::META_SECTOR,
             'phone'              => 'billing_phone',
 
+            'contact_first_name' => 'first_name',
+            'contact_last_name'  => 'last_name',
+
             'billing_address_1'  => 'billing_address_1',
             'billing_postcode'   => 'billing_postcode',
             'billing_city'       => 'billing_city',
@@ -708,6 +725,19 @@ class LavendelHygiene_Registration {
         }
         if ( isset( $_POST['company_name'] ) ) { // also set shipping company to company name
             update_user_meta($customer_id, 'shipping_company', sanitize_text_field( wp_unslash( $_POST['company_name'] ) ));
+        }
+        if ( isset( $_POST['phone'] ) ) { // also set shipping phone to phone
+            update_user_meta($customer_id, 'shipping_phone', sanitize_text_field( wp_unslash( $_POST['phone'] ) ));
+        }
+        if ( isset( $_POST['contact_first_name'] ) ) {
+            $first = sanitize_text_field( wp_unslash( $_POST['contact_first_name'] ) );
+            update_user_meta( $customer_id, 'billing_first_name', $first );
+            update_user_meta( $customer_id, 'shipping_first_name', $first );
+        }
+        if ( isset( $_POST['contact_last_name'] ) ) {
+            $last = sanitize_text_field( wp_unslash( $_POST['contact_last_name'] ) );
+            update_user_meta( $customer_id, 'billing_last_name', $last );
+            update_user_meta( $customer_id, 'shipping_last_name', $last );
         }
 
         // EHF (checkbox)
