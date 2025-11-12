@@ -34,7 +34,7 @@ final class LavendelHygiene_Core {
         new LavendelHygiene_ProfileFields();
         new LavendelHygiene_Gating();
         new LavendelHygiene_Notifications();
-        new LavendelHygiene_AccountPhoneField();
+        new LavendelHygiene_TweakUserSettings();
 
         // Minor label tweak
         add_filter( 'woocommerce_countries_tax_or_vat', fn($label) => 'MVA (25%)' );
@@ -898,14 +898,38 @@ class LavendelHygiene_Notifications {
     }
 }
 
-class LavendelHygiene_AccountPhoneField {
+class LavendelHygiene_TweakUserSettings {
     public function __construct() {
         add_action( 'woocommerce_edit_account_form', [ $this, 'render_field' ] );
         add_action( 'woocommerce_save_account_details', [ $this, 'save_field' ] );
 
         add_filter( 'woocommerce_shipping_fields', [ $this, 'add_shipping_phone_field' ] );
         add_filter( 'woocommerce_billing_fields', [ $this, 'maybe_hide_billing_email_on_address_edit' ] );
+
+        // Stop billing name/phone in the *user profile* from being modified by the Checkout Block.
+        add_filter( 'update_user_metadata', [ $this, 'prevent_order_overwrite_billing_fields' ], 10, 5 );
     }
+
+    public function prevent_order_overwrite_billing_fields( $check, $user_id, $meta_key, $meta_value, $prev_value ) {
+        // Only care about these profile fields
+        $protected_keys = array( 'billing_first_name', 'billing_last_name', 'billing_phone' );
+
+        if ( ! in_array( $meta_key, $protected_keys, true ) ) {
+            return $check;
+        }
+
+        $uri        = $_SERVER['REQUEST_URI'] ?? '';
+        $rest_base  = trailingslashit( rest_get_url_prefix() );
+        $is_store   = ( false !== strpos( $uri, $rest_base . 'wc/store/' ) );
+        $is_checkout= ( false !== strpos( $uri, '/checkout' ) );
+
+        if ( $is_store && $is_checkout ) {
+            // Short-circuit the update
+            return true;
+        }
+
+        return $check;
+    } 
 
     public function add_shipping_phone_field( $fields ) {
         if ( ! isset( $fields['shipping_phone'] ) ) {
