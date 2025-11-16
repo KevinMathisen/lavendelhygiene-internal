@@ -62,8 +62,7 @@ lavendelhygiene-internal/
   - Then click approve/deny
 - User notified if approved/denied
 
-
-![Digram of user approval flow](docs/new-user-path.png)
+![Digram of overview](docs/overview-lh.png)
 
 **Checkout:**
 - Approved customer places an order
