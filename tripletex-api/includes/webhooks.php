@@ -265,10 +265,16 @@ final class LH_Ttx_Webhooks {
         $meta_key = defined('LH_TTX_META_TTX_ORDER_ID') ? LH_TTX_META_TTX_ORDER_ID : '_tripletex_order_id';
 
         $orders = wc_get_orders([
+            'type'       => 'shop_order',
             'limit'      => 1,
-            'meta_key'   => $meta_key,
-            'meta_value' => $ttx_order_id,
             'return'     => 'ids',
+            'meta_query' => [
+                [
+                    'key'     => $meta_key,
+                    'value'   => (string) $ttx_order_id,
+                    'compare' => '=',
+                ],
+            ],
         ]);
 
         if (empty($orders)) return 0;

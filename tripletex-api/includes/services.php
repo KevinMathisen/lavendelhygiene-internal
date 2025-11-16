@@ -282,8 +282,10 @@ final class LH_Ttx_Orders_Service {
         if (is_wp_error($created_id)) return $created_id;
 
         // Store mapping + note
-        update_post_meta($order_id, LH_TTX_META_TTX_ORDER_ID, (int) $created_id);
-        update_post_meta($order_id, LH_TTX_META_TTX_LAST_SYNC_AT, time());
+        $order->update_meta_data( LH_TTX_META_TTX_ORDER_ID, (int) $created_id );
+        $order->update_meta_data( LH_TTX_META_TTX_LAST_SYNC_AT, time() );
+        $order->save();
+
         $order->add_order_note(sprintf(__('Tripletex-ordre opprettet (ID: %d).', 'lh-ttx'), (int) $created_id));
 
         LH_Ttx_Logger::info('Created Tripletex order', [
@@ -497,6 +499,7 @@ function get_tripletex_product_id_from_wc_product(\WC_Product $product) {
     if ($ttx_id <= 0) { return new WP_Error('ttx_id_invalid', __('Ugyldig Tripletex-produkt-ID.', 'lh-ttx')); }
 
     // Persist mapping
+
     update_post_meta($wc_id, '_tripletex_product_id', $ttx_id);
 
     return $ttx_id;
