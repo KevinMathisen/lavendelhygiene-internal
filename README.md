@@ -151,6 +151,20 @@ curl -X POST "$BASE/event/subscription" \
           "authHeaderName": "'$CALLBACK_AUTH_NAME'",
           "authHeaderValue": "'$CALLBACK_AUTH_VALUE'"
         }'
+
+# order.update
+curl -X POST "$BASE/event/subscription" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $AUTH_BASIC" \
+  -d '{
+        "event": "order.update",
+        "targetUrl": "'$TARGET_URL'",
+        "fields": "status",
+        "authHeaderName": "'$CALLBACK_AUTH_NAME'",
+        "authHeaderValue": "'$CALLBACK_AUTH_VALUE'"
+      }'
+
 ```
 
 ### Additional webhook subscrption commands
