@@ -788,6 +788,9 @@ class LavendelHygiene_Gating {
         /* UX notices */
         add_action( 'woocommerce_account_content',                [ $this, 'maybe_show_pending_notice' ] );
         add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_product_page_notice' ], 7 );
+        add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_volume_pricing_notice' ], 11 );
+
+        add_filter( 'render_block', [ $this, 'inject_notice_for_blocks_cart_checkout' ], 10, 2 );
 
         /* gating: prices, purchasability, cart/checkout access */
         add_filter( 'woocommerce_get_price_html',                 [ $this, 'filter_price_html' ], 9, 2 );
@@ -865,6 +868,75 @@ class LavendelHygiene_Gating {
         if ( LavendelHygiene_Core::user_is_pending( get_current_user_id() ) ) {
             echo '<div class="woocommerce-info">' . esc_html__( 'Kontoen din avventer godkjenning.', 'lavendelhygiene' ) . '</div>';
         }
+    }
+
+    public function maybe_volume_pricing_notice() {
+        if ( ! function_exists( 'is_product' ) || ! is_product() ) return;
+        if ( LavendelHygiene_Core::user_is_restricted() ) return; // show only when price is shown
+
+        global $product;
+        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) return;
+
+        $flag = get_post_meta( $product->get_id(), 'show_volume_pricing_notice', true );
+        $enabled = ( $flag === 'yes' || $flag === '1' );
+
+        if ( ! $enabled ) return;
+
+        echo '<div class="woocommerce-info">' . esc_html__( 'Pris varierer med volum og leveringsbetingelser, <a href="/kontakt">kontakt oss</a> for tilbud. Prisen vist er veiledence, tilbud blir lagt til i faktura.', 'lavendelhygiene' ) . '</div>';
+    }
+
+    public function inject_notice_for_blocks_cart_checkout( $block_content, $block ) {
+        if ( empty( $block['blockName'] ) ) {
+            return $block_content;
+        }
+
+        if ( ! ( function_exists( 'is_cart' ) && is_cart() ) ) {
+            return $block_content;
+        }
+
+        if ( $block['blockName'] !== 'woocommerce/cart' ) {
+            return $block_content;
+        }
+
+            $message = __( 'Merk: Nettpris er veiledende. Individuelle tilbud vil bli reflektert i fakturaen.', 'lavendelhygiene' );
+
+        static $printed = false;
+        $style = '';
+        if ( ! $printed ) {
+            $printed = true;
+            $style = '<style id="lavh-cart-checkout-notice-style">
+                .lavh-cart-checkout-notice{display:flex;justify-content:center;margin:0 0 30px;}
+                .lavh-cart-checkout-notice .wc-block-components-notice-banner{
+                    width:fit-content;
+                    max-width:100%;
+                    font-size:1rem;
+                    line-height:1.4;
+                    padding:14px 22px;
+                    border:0px;
+                    background:#f3f8ff;
+                    border-radius:8px;
+                }
+                .lavh-cart-checkout-notice .wc-block-components-notice-banner__content{
+                    text-align:center;
+                    font-weight:500;
+                    letter-spacing:.2px;
+                }
+                @media (min-width: 900px){
+                    .lavh-cart-checkout-notice .wc-block-components-notice-banner{font-size:1.05rem;}
+                }
+            </style>';
+        }
+
+        $notice_html = sprintf(
+            '<div class="lavh-cart-checkout-notice">
+                <div class="wc-block-components-notice-banner is-info" role="status" aria-live="polite">
+                    <div class="wc-block-components-notice-banner__content">%s</div>
+                </div>
+            </div>',
+            esc_html( $message )
+        );
+
+        return $style . $notice_html . $block_content;
     }
 }
 
