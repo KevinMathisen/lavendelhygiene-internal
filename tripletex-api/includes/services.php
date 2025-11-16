@@ -485,7 +485,7 @@ function get_tripletex_product_id_from_wc_product(\WC_Product $product) {
 
     $wc_id = (int) $product->get_id();
 
-    $stored = (int) get_post_meta($wc_id, '_tripletex_product_id', true);
+    $stored = (int) $product->get_meta('_tripletex_product_id', true);
     if ($stored > 0) { return $stored; }
 
     // Need SKU
@@ -499,8 +499,8 @@ function get_tripletex_product_id_from_wc_product(\WC_Product $product) {
     if ($ttx_id <= 0) { return new WP_Error('ttx_id_invalid', __('Ugyldig Tripletex-produkt-ID.', 'lh-ttx')); }
 
     // Persist mapping
-
-    update_post_meta($wc_id, '_tripletex_product_id', $ttx_id);
+    $product->update_meta_data( '_tripletex_product_id', $ttx_id );
+    $product->save();
 
     return $ttx_id;
 }
