@@ -871,6 +871,10 @@ class LavendelHygiene_Gating {
 class LavendelHygiene_Notifications {
     public function __construct() {
         add_action( 'woocommerce_created_customer', [ $this, 'email_on_registration' ], 25, 3 );
+
+        // notify customer when order goes from pending -> on-hold
+        add_action('woocommerce_order_status_pending_to_on-hold',
+            [ $this, 'send_processing_email_for_invoice_on_hold' ], 10, 2 );
     }
 
     public function email_on_registration( $user_id, $new_customer_data = [], $password_generated = false ) {
@@ -896,6 +900,28 @@ class LavendelHygiene_Notifications {
         );
         wp_mail( $admin_to, $subject_admin, $body_admin );
     }
+
+    public function send_processing_email_for_invoice_on_hold( $order_id, $order ) {
+        $mailer = WC()->mailer();
+        if ( ! $mailer ) {
+            return;
+        }
+        $emails = $mailer->get_emails();
+
+        if ( empty( $emails['WC_Email_Customer_Processing_Order'] ) ) {
+            return;
+        }
+
+        $processing_email = $emails['WC_Email_Customer_Processing_Order'];
+
+        if ( method_exists( $processing_email, 'is_enabled' ) && ! $processing_email->is_enabled() ) {
+            return;
+        }
+
+        // Send "Processing order" email
+        $processing_email->trigger( $order_id, $order );
+    }
+
 }
 
 class LavendelHygiene_TweakUserSettings {
