@@ -49,8 +49,10 @@ final class LH_Ttx_Webhooks {
         if (strpos($event, 'product.') === 0) {
             return $this->handle_product_event($event, $objectId, $value, $subscriptionId, $requestId);
         }
+        if (strpos($event, 'order.') === 0) {
+            return $this->handle_order_event($event, $objectId, $value, $subscriptionId, $requestId);
+        }
 
-        // TODO: Add handlers for other events if/when needed (order.*, customer.*, etc.)
         LH_Ttx_Logger::info('Webhook ignored (unsupported event)', [
             'event'          => $event,
             'subscriptionId' => $subscriptionId,
@@ -127,6 +129,98 @@ final class LH_Ttx_Webhooks {
         return new \WP_REST_Response(['ok' => true], 200);
     }
 
+    private function handle_order_event(string $event, int $ttx_order_id, ?array $value, int $subscriptionId, ?string $requestId) {
+        // We only care about order.update for now
+        if ($event !== 'order.update') {
+            LH_Ttx_Logger::info('Webhook order event ignored (unhandled verb)', [
+                'event'          => $event,
+                'ttx_order_id'   => $ttx_order_id,
+                'subscriptionId' => $subscriptionId,
+            ]);
+
+            return new \WP_REST_Response(['ok' => true, 'ignored' => true], 200);
+        }
+
+        if ($value === null) {
+            LH_Ttx_Logger::info('Webhook order.update received without value payload', [
+                'event'          => $event,
+                'ttx_order_id'   => $ttx_order_id,
+                'subscriptionId' => $subscriptionId,
+            ]);
+
+            // still 200 so Tripletex does not disable the subscription
+            return new \WP_REST_Response(['ok' => true, 'ignored' => true, 'reason' => 'missing_value'], 200);
+        }
+
+        $rawStatus = $value['status'] ?? '';
+        $status = strtoupper(trim((string) $rawStatus));
+
+        if ($status !== 'READY_FOR_INVOICING') {
+            LH_Ttx_Logger::info('Webhook order.update status not handled', [
+                'event'          => $event,
+                'ttx_order_id'   => $ttx_order_id,
+                'subscriptionId' => $subscriptionId,
+                'status'         => $status,
+            ]);
+
+            return new \WP_REST_Response(['ok' => true,'ignored' => true,
+                'reason' => 'status_not_ready_for_invoicing','status' => $status], 200);
+        }
+
+        $wc_order_id = $this->find_wc_order_by_tripletex_order_id($ttx_order_id);
+
+        if ($wc_order_id <= 0) {
+            LH_Ttx_Logger::info('Webhook order.update: no local order with Tripletex order id', [
+                'event'          => $event,
+                'ttx_order_id'   => $ttx_order_id,
+                'subscriptionId' => $subscriptionId,
+                'status'         => $status,
+            ]);
+
+            return new \WP_REST_Response(['ok' => true,'mapped' => false,'reason' => 'order_not_found'], 200);
+        }
+
+        $order = wc_get_order($wc_order_id);
+        if (!$order) {
+            LH_Ttx_Logger::error('Webhook order.update: wc_get_order failed', [
+                'event'          => $event,
+                'ttx_order_id'   => $ttx_order_id,
+                'subscriptionId' => $subscriptionId,
+                'wc_order_id'    => $wc_order_id,
+            ]);
+
+            return new \WP_REST_Response(['ok' => false,'error' => 'order_load_failed'], 200);
+        }
+
+        // Avoid re-doing work if already completed
+        if ($order->get_status() === 'completed') {
+            LH_Ttx_Logger::info('Webhook order.update: local order already completed', [
+                'event'          => $event,
+                'ttx_order_id'   => $ttx_order_id,
+                'subscriptionId' => $subscriptionId,
+                'wc_order_id'    => $wc_order_id,
+            ]);
+
+            return new \WP_REST_Response(['ok' => true, 'mapped' => true, 'already_completed' => true], 200);
+        }
+
+        $order->update_status(
+            'completed',
+            __('Oppdatert til «fullført» fra Tripletex (status READY_FOR_INVOICING).', 'lh-ttx')
+        );
+
+        LH_Ttx_Logger::info('Webhook order.update: local order marked completed from Tripletex', [
+            'event'          => $event,
+            'ttx_order_id'   => $ttx_order_id,
+            'subscriptionId' => $subscriptionId,
+            'wc_order_id'    => $wc_order_id,
+            'status'         => $status,
+        ]);
+
+        return new \WP_REST_Response(['ok' => true,'mapped' => true,'wc_order_id' => $wc_order_id], 200);
+    }
+
+
     /* ------------------------ Helpers ------------------------ */
 
     private function verify_auth(\WP_REST_Request $request) {
@@ -163,4 +257,22 @@ final class LH_Ttx_Webhooks {
         $id = wc_get_product_id_by_sku($sku);
         return $id ? (int) $id : 0;
     }
+
+    private function find_wc_order_by_tripletex_order_id(int $ttx_order_id): int {
+        if ($ttx_order_id <= 0) return 0;
+
+        // Use the constant if available, otherwise fall back to the raw meta key
+        $meta_key = defined('LH_TTX_META_TTX_ORDER_ID') ? LH_TTX_META_TTX_ORDER_ID : '_tripletex_order_id';
+
+        $orders = wc_get_orders([
+            'limit'      => 1,
+            'meta_key'   => $meta_key,
+            'meta_value' => $ttx_order_id,
+            'return'     => 'ids',
+        ]);
+
+        if (empty($orders)) return 0;
+        return (int) $orders[0];
+    }
+
 }
