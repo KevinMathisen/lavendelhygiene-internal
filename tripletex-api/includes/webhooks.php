@@ -21,6 +21,7 @@ final class LH_Ttx_Webhooks {
     /* ------------------------ Handler ------------------------ */
 
     public function permission_check(\WP_REST_Request $request) {
+        LH_Ttx_Logger::info('Webhook request revieved');
         $auth = $this->verify_auth($request);
         return is_wp_error($auth) ? $auth : true;
     }
@@ -54,7 +55,6 @@ final class LH_Ttx_Webhooks {
             'event'          => $event,
             'subscriptionId' => $subscriptionId,
             'id'             => $objectId,
-            'requestId'      => $requestId,
         ]);
 
         // Return 200 to avoid disabling the subscription even if we ignore it
@@ -70,7 +70,6 @@ final class LH_Ttx_Webhooks {
                 'event'          => $event,
                 'ttx_product_id' => $ttx_product_id,
                 'subscriptionId' => $subscriptionId,
-                'requestId'      => $requestId,
             ]);
             return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'missing_sku'], 200);
         }
@@ -83,7 +82,6 @@ final class LH_Ttx_Webhooks {
                 'sku'            => $sku,
                 'ttx_product_id' => $ttx_product_id,
                 'subscriptionId' => $subscriptionId,
-                'requestId'      => $requestId,
             ]);
             return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'sku_not_found'], 200);
         }
@@ -91,9 +89,9 @@ final class LH_Ttx_Webhooks {
         if ($event !== 'product.update') {
             LH_Ttx_Logger::info('Webhook product event ignored (unhandled verb)', [
                 'event'          => $event,
+                'sku'            => $sku,
                 'ttx_product_id' => $ttx_product_id,
                 'subscriptionId' => $subscriptionId,
-                'requestId'      => $requestId,
             ]);
 
             return new \WP_REST_Response(['ok' => true, 'ignored' => true], 200);
@@ -108,9 +106,9 @@ final class LH_Ttx_Webhooks {
         if (is_wp_error($priceRes)) {
             LH_Ttx_Logger::error('Webhook product price sync failed', [
                 'ttx_product_id' => $ttx_product_id,
+                'sku'            => $sku,
                 'event'          => $event,
                 'error'          => $priceRes->get_error_message(),
-                'requestId'      => $requestId,
             ]);
             // 200 to avoid disabling
             return new \WP_REST_Response(['ok' => false, 'error' => $priceRes->get_error_message()], 200);
@@ -121,9 +119,9 @@ final class LH_Ttx_Webhooks {
 
         LH_Ttx_Logger::info('Webhook product sync OK', [
             'ttx_product_id' => $ttx_product_id,
+            'sku'            => $sku,
             'event'          => $event,
             'subscriptionId' => $subscriptionId,
-            'requestId'      => $requestId,
         ]);
 
         return new \WP_REST_Response(['ok' => true], 200);
