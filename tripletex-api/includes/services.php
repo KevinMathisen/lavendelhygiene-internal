@@ -310,7 +310,7 @@ final class LH_Ttx_Orders_Service {
 
         $payload = [
             'customer'      => [ 'id' => $ttx_customer_id ],
-            'status'        => 'NEW',
+            'status'        => 'CONFIRMATION_SENT',
             'orderDate'     => $order_dt, 
             'deliveryDate'  => $order_dt,
         ];
@@ -339,13 +339,6 @@ final class LH_Ttx_Orders_Service {
         $payload['orderLines'] = $lines;
 
         return $payload;
-    }
-
-    /**
-     * Compute ex-VAT total per line.
-     */
-    private function line_total_ex_vat(\WC_Order_Item_Product $item): float {
-        return (float) wc_format_decimal((float) $item->get_total(), 6);
     }
 
     private function compose_invoice_comment(\WC_Order $order): string {
