@@ -988,14 +988,27 @@ class LavendelHygiene_Notifications {
             $admin_to = get_option( 'admin_email' );
         }
         $subject_admin = sprintf( __( 'Ny bedrift-registrering: %s', 'lavendelhygiene' ), $user->user_login );
-        $body_admin    = sprintf(
-            "Ny registrering venter godkjenning.\n\nBruker: %s\nE-post: %s\nSelskap: %s\nOrg.nr: %s\n",
-            $user->user_login,
-            $user->user_email,
-            get_user_meta( $user_id, 'billing_company', true ),
-            get_user_meta( $user_id, LavendelHygiene_Core::META_ORGNR, true )
+
+        $applications_url = admin_url( 'users.php?page=lavendelhygiene-applications' );
+
+        $body_admin = sprintf(
+            '<p>Ny registrering venter godkjenning.</p>
+            <p>
+                <strong>Bruker:</strong> %s<br>
+                <strong>E-post:</strong> %s<br>
+                <strong>Selskap:</strong> %s<br>
+                <strong>Org.nr:</strong> %s
+            </p>
+            <p><a href="%s">Åpne pending users</a></p>',
+            esc_html( $user->user_login ),
+            esc_html( $user->user_email ),
+            esc_html( (string) get_user_meta( $user_id, 'billing_company', true ) ),
+            esc_html( (string) get_user_meta( $user_id, LavendelHygiene_Core::META_ORGNR, true ) ),
+            esc_url( $applications_url )
         );
-        wp_mail( $admin_to, $subject_admin, $body_admin );
+
+        $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+        wp_mail( $admin_to, $subject_admin, $body_admin, $headers );
     }
 
     public function send_processing_email_for_invoice_on_hold( $order_id, $order ) {
