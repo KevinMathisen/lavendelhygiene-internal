@@ -790,6 +790,7 @@ class LavendelHygiene_Gating {
         add_action( 'woocommerce_account_content',                [ $this, 'maybe_show_pending_notice' ] );
         add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_product_page_notice' ], 7 );
         add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_volume_pricing_notice' ], 11 );
+        add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_dycem_pricing_notice' ], 12 );
 
         add_filter( 'render_block', [ $this, 'inject_notice_for_blocks_cart_checkout' ], 10, 2 );
 
@@ -863,11 +864,11 @@ class LavendelHygiene_Gating {
         if ( ! function_exists( 'is_product' ) || ! is_product() ) return;
 
         if ( ! is_user_logged_in() ) {
-            echo '<div class="woocommerce-info">' . esc_html__( 'Logg inn for å se pris.', 'lavendelhygiene' ) . '</div>';
+            echo '<div class="woocommerce-info">' . esc_html__( '<a href="/my-account/">Logg inn</a> for å se pris.', 'lavendelhygiene' ) . '</div>';
             return;
         }
         if ( LavendelHygiene_Core::user_is_pending( get_current_user_id() ) ) {
-            echo '<div class="woocommerce-info">' . esc_html__( 'Kontoen din avventer godkjenning.', 'lavendelhygiene' ) . '</div>';
+            echo '<div class="woocommerce-info">' . esc_html__( 'Konto må bli godkjent for å se priser og handle, kontakt oss ved spørsmål.', 'lavendelhygiene' ) . '</div>';
         }
     }
 
@@ -885,6 +886,29 @@ class LavendelHygiene_Gating {
 
         echo '<div class="woocommerce-info">' . esc_html__( 'Pris varierer med volum og leveringsbetingelser, <a href="/kontakt">kontakt oss</a> for tilbud. Prisen vist er veiledence, tilbud blir lagt til i faktura.', 'lavendelhygiene' ) . '</div>';
     }
+
+    public function maybe_dycem_pricing_notice() {
+        if ( ! function_exists( 'is_product' ) || ! is_product() ) return;
+        if ( LavendelHygiene_Core::user_is_restricted() ) return;
+
+        $product = wc_get_product( get_queried_object_id() );
+        if ( ! $product ) return;
+
+        // If somehow we're on a variation object, normalize to the parent.
+        if ( $product->is_type( 'variation' ) ) {
+            $product = wc_get_product( $product->get_parent_id() );
+            if ( ! $product ) return;
+        }
+
+        $target_skus = array( '100', '108' ); // keep as strings
+
+        if ( ! in_array( (string) $product->get_sku(), $target_skus, true ) ) return;
+
+        echo '<div class="woocommerce-info">' .
+            wp_kses_post( __( 'For kjøp av Hygienematter vil pris for montering komme i tillegg, <a href="/kontakt">kontakt oss</a> for spørsmål.', 'lavendelhygiene' ) ) .
+        '</div>';
+    }
+
 
     public function inject_notice_for_blocks_cart_checkout( $block_content, $block ) {
         if ( empty( $block['blockName'] ) ) {
