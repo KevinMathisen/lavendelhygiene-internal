@@ -943,7 +943,7 @@ class LavendelHygiene_Gating {
             return $block_content;
         }
 
-            $message = __( 'Merk: Nettpris er veiledende pris. Individuelle tilbud vil bli reflektert i fakturaen. Gjerne oppgi tilbud nummer i ordre notat.', 'lavendelhygiene' );
+            $message = __( 'Merk: Nettpris er veiledende pris. Individuelle tilbud vil bli reflektert i fakturaen.', 'lavendelhygiene' );
 
         static $printed = false;
         $style = '';
