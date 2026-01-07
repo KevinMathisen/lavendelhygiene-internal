@@ -275,12 +275,32 @@ class LavendelHygiene_AdminApplications {
             update_user_meta( $user_id, LavendelHygiene_Core::META_APPROVED_BY, get_current_user_id() );
             update_user_meta( $user_id, LavendelHygiene_Core::META_APPROVED_AT, current_time( 'mysql' ) );
 
-            /* Notify user through email that they were approved */
-            wp_mail(
-                $user->user_email,
-                __( '[Lavendel Hygiene AS] Kontoen din er godkjent', 'lavendelhygiene' ),
-                __( "Hei!\n\nKontoen din hos Lavendel Hygiene er godkjent. Du kan nå se priser og bestille produkter direkte fra nettbutikken!\n\nKontakt oss hvis du har noen spørsmål.\n\nHilsen oss i Lavendel Hygiene", 'lavendelhygiene' )
+            /* Notify user through email that they were approved (HTML) */
+            $site_url  = home_url( '/' );
+            $login_url = wc_get_page_permalink( 'myaccount' );
+
+            $subject = __( '[Lavendel Hygiene AS] Kontoen din er godkjent', 'lavendelhygiene' );
+
+            $body = sprintf(
+                '<p>%s</p>
+                <p>%s</p>
+                <p>
+                    <a href="%s">%s</a><br>
+                    <a href="%s">%s</a>
+                </p>
+                <p>%s</p>',
+                esc_html__( 'Hei!', 'lavendelhygiene' ),
+                esc_html__( 'Kontoen din hos Lavendel Hygiene er godkjent. Du kan nå se priser og bestille produkter direkte fra nettbutikken.', 'lavendelhygiene' ),
+                esc_url( $login_url ),
+                esc_html__( 'Gå til Min konto (innlogging)', 'lavendelhygiene' ),
+                esc_url( $site_url ),
+                esc_html( wp_parse_url( $site_url, PHP_URL_HOST ) ?: $site_url ),
+                esc_html__( 'Hilsen oss i Lavendel Hygiene', 'lavendelhygiene' )
             );
+
+            $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+
+            wp_mail( $user->user_email, $subject, $body, $headers );
         }
         wp_safe_redirect( admin_url( 'users.php?page=lavendelhygiene-applications&approved=1' ) );
         exit;
