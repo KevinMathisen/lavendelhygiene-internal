@@ -506,7 +506,7 @@ class LavendelHygiene_Registration {
         // Sector options
         $sector_options = [
             'Datasenter'                   => 'Datasenter',
-            'Labaratorier'                 => 'Labaratorier',
+            'Laboratorier'                 => 'Laboratorier',
             'Helse/Sykehus'                => 'Helse/Sykehus',
             'Bakeri'                       => 'Bakeri',
             'Fiskeoppdrett'                => 'Fiskeoppdrett',
