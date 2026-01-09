@@ -538,3 +538,38 @@ function ttx_orders_create(array $payload) {
     }
     return $id;
 }
+
+/** -------------------------------------------------------------------------
+ * DiscountPolicy
+ * -------------------------------------------------------------------------- */
+
+/**
+ * List discount policies for a Tripletex customer.
+ *
+ * @param int   $customer_id Tripletex customer id
+ * @return array|\WP_Error Array of DiscountPolicy records
+ */
+function ttx_discountpolicy_list(int $customer_id) {
+    if ($customer_id <= 0) {
+        return ttx_error('ttx_customer_id_invalid', __('Ugyldig Tripletex-kunde-ID.', 'lh-ttx'));
+    }
+
+    $query = [
+        'customerId'    => $customer_id,
+        'discountType'  => 'CUSTOMER_DISCOUNT',
+        'from'          => 0,
+        'count'         => 1000,
+        'fields'        => 'percentage,salesPriceWithDiscount,product(id)',
+    ];
+
+    $res = ttx_get('/discountPolicy', $query);
+    if (is_wp_error($res)) return $res;
+
+    if (!is_array($res)) {
+        return ttx_error('ttx_discountpolicy_invalid_response', __('Ugyldig respons fra Tripletex (discountPolicy).', 'lh-ttx'), [
+            'response' => $res,
+        ]);
+    }
+
+    return $res;
+}

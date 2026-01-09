@@ -119,8 +119,11 @@ add_action('plugins_loaded', function () {
     require_once LH_TTX_PLUGIN_DIR . 'includes/services.php';
     require_once LH_TTX_PLUGIN_DIR . 'includes/settings-page.php';
     require_once LH_TTX_PLUGIN_DIR . 'includes/webhooks.php';
+    require_once LH_TTX_PLUGIN_DIR . 'includes/pricing.php';
 
     $services = LH_Ttx_Service_Registry::instance();
+    $pricing = new LH_Ttx_Pricing_Hooks($services);
+    $pricing->init();
 
     // REST/webhooks should always register
     (new LH_Ttx_Webhooks())->init();
@@ -190,6 +193,18 @@ add_action('plugins_loaded', function () {
         array_unshift($links, '<a href="'.esc_url($url).'">'.esc_html__('Settings', 'lh-ttx').'</a>');
         return $links;
     });
+
+    /* ---- cache invalidation --- */
+    add_action('wp_logout', function () use ($services) {
+        $uid = get_current_user_id();
+        if ($uid > 0) {
+            $services->discounts()->invalidate_user_discount_cache($uid);
+        }
+    });
+
+    add_action('lavendelhygiene_tripletex_linked', function ($user_id) use ($services) {
+        $services->discounts()->invalidate_user_discount_cache((int) $user_id);
+    }, 10, 3);
 });
 
 /**
@@ -201,6 +216,7 @@ final class LH_Ttx_Service_Registry {
     private $customers = null;
     private $orders    = null;
     private $products  = null;
+    private $discounts = null;
 
     public static function instance(): self {
         return self::$instance ??= new self();
@@ -215,4 +231,8 @@ final class LH_Ttx_Service_Registry {
     public function products() {
         return $this->products ??= new LH_Ttx_Products_Service();
     }
+    public function discounts() {
+        return $this->discounts ??= new LH_Ttx_Discounts_Service($this->customers());
+    }
+
 }
