@@ -25,7 +25,7 @@ final class LH_Ttx_Pricing_Hooks {
         add_filter('woocommerce_available_variation', [$this, 'filter_available_variation'], 20, 3);
 
         // Savings / original price info on single product page (simple + variable parent)
-        add_action('woocommerce_single_product_summary', [$this, 'render_savings_notice'], 12);
+        add_action('woocommerce_single_product_summary', [$this, 'render_savings_notice'], 11);
 
         // Optional: ensure product pages for logged-in users are not cached
         add_action('template_redirect', [$this, 'maybe_disable_cache'], 0);
@@ -161,13 +161,12 @@ final class LH_Ttx_Pricing_Hooks {
 
         $save_amount = max(0, (float)$regular - (float)$new_price);
 
-        echo '<div class="lh-ttx-savings" style="margin-top:6px;">';
+        echo '<div class="lh-ttx-savings" style="margin-bottom:20px;">';
         echo '<small>';
         echo esc_html(sprintf(
-            __('Din avtalepris: %s. Du sparer %s%% (%s).', 'lh-ttx'),
-            wp_strip_all_tags(wc_price($new_price)),
-            $this->format_pct($pct),
-            wp_strip_all_tags(wc_price($save_amount))
+            __('Veiledende pris: %s. Din rabatt %s%%.', 'lh-ttx'),
+            wp_strip_all_tags(wc_price($regular)),
+            $this->format_pct($pct)
         ));
         echo '</small>';
         echo '</div>';

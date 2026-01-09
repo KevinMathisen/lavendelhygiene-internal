@@ -808,8 +808,8 @@ class LavendelHygiene_Gating {
     public function __construct() {
         /* UX notices */
         add_action( 'woocommerce_account_content',                [ $this, 'maybe_show_pending_notice' ] );
-        add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_product_page_notice' ], 7 );
-        add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_volume_pricing_notice' ], 11 );
+        add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_product_page_notice' ], 12 );
+        add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_volume_pricing_notice' ], 12 );
         add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_dycem_pricing_notice' ], 12 );
 
         add_filter( 'render_block', [ $this, 'inject_notice_for_blocks_cart_checkout' ], 10, 2 );
