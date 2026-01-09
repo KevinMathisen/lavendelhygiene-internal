@@ -812,7 +812,7 @@ class LavendelHygiene_Gating {
         add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_volume_pricing_notice' ], 12 );
         add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_dycem_pricing_notice' ], 12 );
 
-        add_filter( 'render_block', [ $this, 'inject_notice_for_blocks_cart_checkout' ], 10, 2 );
+        // add_filter( 'render_block', [ $this, 'inject_notice_for_blocks_cart_checkout' ], 10, 2 );
 
         /* gating: prices, purchasability, cart/checkout access */
         add_filter( 'woocommerce_get_price_html',                 [ $this, 'filter_price_html' ], 9, 2 );
@@ -905,7 +905,7 @@ class LavendelHygiene_Gating {
         if ( ! $enabled ) return;
 
         echo '<div class="woocommerce-info">' . wp_kses_post(
-            __( 'Pris varierer med volum og leveringsbetingelser, <a href="/kontakt">kontakt oss</a> for tilbud. Prisen vist er veiledende, tilbud blir lagt til i faktura.', 'lavendelhygiene' )
+            __( 'Pris varierer med volum og leveringsbetingelser, <a href="/kontakt">kontakt oss</a> for tilbud.', 'lavendelhygiene' )
         ) . '</div>';
     }
 
