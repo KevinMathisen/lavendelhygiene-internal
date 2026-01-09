@@ -48,19 +48,34 @@ register_activation_hook(__FILE__, function(){
  * Simple logger wrapper
  */
 final class LH_Ttx_Logger {
-    private static ?WC_Logger $logger = null;
+    /** @var object|null */
+    private static $logger = null;
 
-    protected static function logger(): WC_Logger {
-        if (!self::$logger) self::$logger = new WC_Logger();
-        return self::$logger;
+    /** @return object */
+    protected static function logger() {
+        if (class_exists('WC_Logger')) {
+            if (!self::$logger) self::$logger = new WC_Logger();
+            return self::$logger;
+        }
+
+        return new class {
+            public function info($message, $context = []) { error_log('[lavendelhygiene-tripletex] ' . $message); }
+            public function error($message, $context = []) { error_log('[lavendelhygiene-tripletex] ERROR: ' . $message); }
+        };
     }
 
     public static function info(string $message, array $context = []): void {
-        self::logger()->info(self::format($message, $context), ['source' => 'lavendelhygiene-tripletex']);
+        $logger = self::logger();
+        if (method_exists($logger, 'info')) {
+            $logger->info(self::format($message, $context), ['source' => 'lavendelhygiene-tripletex']);
+        }
     }
 
     public static function error(string $message, array $context = []): void {
-        self::logger()->error(self::format($message, $context), ['source' => 'lavendelhygiene-tripletex']);
+        $logger = self::logger();
+        if (method_exists($logger, 'error')) {
+            $logger->error(self::format($message, $context), ['source' => 'lavendelhygiene-tripletex']);
+        }
     }
 
     private static function format(string $message, array $context): string {
