@@ -144,8 +144,7 @@ final class LH_Ttx_Customers_Service {
             'email'              => $email ?: null,
             'invoiceEmail'       => $for_create ? ($email ?: null) : null,
             'phoneNumber'        => $phone ?: null,
-            // 'invoiceSendMethod' =>  $for_create ? ($use_ehf === 'yes' ? 'EHF' : 'EMAIL') : null,
-            'invoiceSendMethod' =>  $for_create ? ('EMAIL') : null, // TODO: only use email for testing. For production, we need EHF option.
+            'invoiceSendMethod' =>  $for_create ? ($use_ehf === 'yes' ? 'EHF' : 'EMAIL') : null,
             'isPrivateIndividual' => $for_create ? (FALSE) : null,
             'postalAddress' => [
                 'addressLine1' => $inv_addr_1 ?: null,
