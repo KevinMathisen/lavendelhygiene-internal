@@ -904,7 +904,9 @@ class LavendelHygiene_Gating {
 
         if ( ! $enabled ) return;
 
-        echo '<div class="woocommerce-info">' . esc_html__( 'Pris varierer med volum og leveringsbetingelser, <a href="/kontakt">kontakt oss</a> for tilbud. Prisen vist er veiledence, tilbud blir lagt til i faktura.', 'lavendelhygiene' ) . '</div>';
+        echo '<div class="woocommerce-info">' . wp_kses_post(
+            __( 'Pris varierer med volum og leveringsbetingelser, <a href="/kontakt">kontakt oss</a> for tilbud. Prisen vist er veiledende, tilbud blir lagt til i faktura.', 'lavendelhygiene' )
+        ) . '</div>';
     }
 
     public function maybe_dycem_pricing_notice() {
