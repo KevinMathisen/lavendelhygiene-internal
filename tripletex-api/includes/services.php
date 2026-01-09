@@ -476,6 +476,14 @@ final class LH_Ttx_Products_Service {
 function get_tripletex_product_id_from_wc_product(\WC_Product $product) {
     if (!$product) { return new WP_Error('wc_product_invalid', __('Ugyldig WooCommerce-produkt.', 'lh-ttx')); }
 
+    // Never resolve Tripletex ID for variable (parent) products.
+    // Variable parents are not purchasable; only variations (and simple products) should sync.
+    if ($product->is_type('variable')) {
+        $product->update_meta_data('_tripletex_product_id', 0);
+        $product->save();
+        return 0;
+    }
+
     $wc_id = (int) $product->get_id();
 
     $stored = (int) $product->get_meta('_tripletex_product_id', true);
