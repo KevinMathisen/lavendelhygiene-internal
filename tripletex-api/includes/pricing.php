@@ -65,7 +65,7 @@ final class LH_Ttx_Pricing_Hooks {
 
             $product = $cart_item['data'];
 
-            $ttx_pid = get_tripletex_product_id_from_wc_product($product); // Will this work, as the function is not defined in this file.
+            $ttx_pid = get_tripletex_product_id_from_wc_product($product);
             if (is_wp_error($ttx_pid)) continue;
 
             $ttx_pid = (int) $ttx_pid;

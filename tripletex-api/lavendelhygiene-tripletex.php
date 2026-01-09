@@ -232,7 +232,7 @@ final class LH_Ttx_Service_Registry {
         return $this->products ??= new LH_Ttx_Products_Service();
     }
     public function discounts() {
-        return $this->discounts ??= new LH_Ttx_Discounts_Service($this->customers());
+        return $this->discounts ??= new LH_Ttx_Discounts_Service();
     }
 
 }

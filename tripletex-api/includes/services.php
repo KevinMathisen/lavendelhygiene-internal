@@ -57,7 +57,7 @@ final class LH_Ttx_Customers_Service {
      * @return true|\WP_Error
      */
     public function sync_user(int $user_id) {
-        $ttx_id = $this->get_linked_tripletex_id($user_id);
+        $ttx_id = lh_ttx_get_linked_tripletex_id($user_id);
 
         if (!$ttx_id) {
             // If no link, then we do nothing
@@ -91,14 +91,6 @@ final class LH_Ttx_Customers_Service {
     }
 
     /* ------------------------- Helpers ------------------------- */
-
-    /**
-     * Read linked Tripletex ID from user meta.
-     */
-    public function get_linked_tripletex_id(int $user_id): int {
-        $val = get_user_meta($user_id, LH_TTX_META_TRIPLETEX_ID, true);
-        return $val ? (int) $val : 0;
-    }
 
     /**
      * Persist link to Tripletex on the user and emit existing core hooks if present.
@@ -269,7 +261,7 @@ final class LH_Ttx_Orders_Service {
             return new WP_Error('guest_not_supported', __('Gjestebestillinger støttes ikke for Tripletex-synk.', 'lh-ttx'));
         }
 
-        $ttx_customer_id = $customer_service->get_linked_tripletex_id($user_id);
+        $ttx_customer_id = lh_ttx_get_linked_tripletex_id($user_id);
         if (!$ttx_customer_id) {
             return new WP_Error('link_failed', __('Kunne ikke linke kunde mot Tripletex.', 'lh-ttx'));
         }
@@ -507,6 +499,12 @@ function get_tripletex_product_id_from_wc_product(\WC_Product $product) {
     return $ttx_id;
 }
 
+function lh_ttx_get_linked_tripletex_id(int $user_id): int {
+    if ($user_id <= 0) return 0;
+    $val = get_user_meta($user_id, LH_TTX_META_TRIPLETEX_ID, true);
+    return $val ? (int) $val : 0;
+}
+
 
 /* ========================================================================== */
 /* Discounts Service                                                           */
@@ -517,11 +515,6 @@ final class LH_Ttx_Discounts_Service {
     /** Cache TTL in seconds (1 hour) */
     private const CACHE_TTL = 3600;
     private const TRANSIENT_PREFIX = 'lh_ttx_disc_';
-    private LH_Ttx_Customers_Service $customers;
-
-    public function __construct(?LH_Ttx_Customers_Service $customers = null) {
-        $this->customers = $customers ?: new LH_Ttx_Customers_Service();
-    }
 
     /**
      * Get discount map for a WP user (cached).
@@ -539,7 +532,7 @@ final class LH_Ttx_Discounts_Service {
     public function get_discount_map_for_user(int $user_id, bool $force_refresh = false) {
         if ($user_id <= 0) return [];
 
-        $ttx_customer_id = $this->customers->get_linked_tripletex_id($user_id);
+        $ttx_customer_id = lh_ttx_get_linked_tripletex_id($user_id);
         if ($ttx_customer_id <= 0) { return []; } // not linked => no discounts 
 
         $tkey = $this->transient_key($ttx_customer_id);
@@ -594,7 +587,7 @@ final class LH_Ttx_Discounts_Service {
     public function invalidate_user_discount_cache(int $user_id): void {
         if ($user_id <= 0) return;
 
-        $ttx_customer_id = $this->customers->get_linked_tripletex_id($user_id);
+        $ttx_customer_id = lh_ttx_get_linked_tripletex_id($user_id);
         if ($ttx_customer_id <= 0) return;
 
         delete_transient($this->transient_key($ttx_customer_id));
