@@ -139,30 +139,46 @@ export CALLBACK_AUTH_NAME="Authorization"
 export CALLBACK_AUTH_VALUE="Bearer YOUR_SECRET"  # must match the plugin's Webhook secret
 
 # product.update
-curl -X POST "$BASE/event/subscription" \
-    -H "Accept: application/json" \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Basic $AUTH_BASIC" \
-    -d '{
-          "event": "product.update",
-          "targetUrl": "'$TARGET_URL'",
-          "fields": "number,priceExcludingVatCurrency",
-          "authHeaderName": "'$CALLBACK_AUTH_NAME'",
-          "authHeaderValue": "'$CALLBACK_AUTH_VALUE'"
-        }'
+payload=$(jq -n \
+  --arg event "product.update" \
+  --arg targetUrl "$TARGET_URL" \
+  --arg fields "number,priceExcludingVatCurrency" \
+  --arg authHeaderName "$CALLBACK_AUTH_NAME" \
+  --arg authHeaderValue "$CALLBACK_AUTH_VALUE" \
+  '{
+    event: $event,
+    targetUrl: $targetUrl,
+    fields: $fields,
+    authHeaderName: $authHeaderName,
+    authHeaderValue: $authHeaderValue
+  }')
 
-# order.update
 curl -X POST "$BASE/event/subscription" \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
   -H "Authorization: Basic $AUTH_BASIC" \
-  -d '{
-        "event": "order.update",
-        "targetUrl": "'$TARGET_URL'",
-        "fields": "status",
-        "authHeaderName": "'$CALLBACK_AUTH_NAME'",
-        "authHeaderValue": "'$CALLBACK_AUTH_VALUE'"
-      }'
+  --data "$payload"
+
+# order.update
+payload=$(jq -n \
+  --arg event "order.update" \
+  --arg targetUrl "$TARGET_URL" \
+  --arg fields "status" \
+  --arg authHeaderName "$CALLBACK_AUTH_NAME" \
+  --arg authHeaderValue "$CALLBACK_AUTH_VALUE" \
+  '{
+    event: $event,
+    targetUrl: $targetUrl,
+    fields: $fields,
+    authHeaderName: $authHeaderName,
+    authHeaderValue: $authHeaderValue
+  }')
+
+curl -X POST "$BASE/event/subscription" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $AUTH_BASIC" \
+  --data "$payload"
 
 ```
 
