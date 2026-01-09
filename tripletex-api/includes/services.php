@@ -345,6 +345,7 @@ final class LH_Ttx_Orders_Service {
 
     private function compose_invoice_comment(\WC_Order $order): string {
         // Comment should contain plain text in following format:
+        // ORDER FRA NETTBUTIKK, SE INFO UNDER
         //  <order_comments>
         // 
         // KONTAKTPERSON LEVERING:
@@ -374,6 +375,7 @@ final class LH_Ttx_Orders_Service {
         $country_code = (string) $order->get_shipping_country();
 
         $lines = [];
+        $lines[] = 'ORDER FRA NETTBUTIKK, SE INFO UNDER';
 
         if ($customer_note !== '') {
             $lines[] = $customer_note;
