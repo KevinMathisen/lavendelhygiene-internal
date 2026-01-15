@@ -945,7 +945,7 @@ class LavendelHygiene_Gating {
             return $block_content;
         }
 
-            $message = __( 'Hvis du har fast rabatt eller avtalepris som er registrert hos oss, reflekteres dette her.<br>Hvis du har fått et tilbud reflekteres det derimot ikke automatisk. Legg ved din tilbudsreferanse i kassen, så vil tilbudets priser reflekteres i endelig faktura.', 'lavendelhygiene' );
+            $message = __( 'Hvis du har fast rabatt eller avtalepris reflekteres dette her.<br>Hvis du har fått et tilbud reflekteres det derimot ikke automatisk. Legg ved din tilbudsreferanse i kassen, så vil tilbudets priser reflekteres i endelig faktura.', 'lavendelhygiene' );
             // $message = __( 'Merk: Individuelle tilbud er ikke vist i nettbutikken, men vil bli reflektert i fakturaen. Ved tilbud, legg inn ditt tilbud nummer i kassen.', 'lavendelhygiene' );
 
         static $printed = false;
@@ -956,7 +956,7 @@ class LavendelHygiene_Gating {
                 .lavh-cart-checkout-notice{display:flex;justify-content:center;margin:0 0 30px;}
                 .lavh-cart-checkout-notice .wc-block-components-notice-banner{
                     width:fit-content;
-                    max-width:100%;
+                    max-width:800px;
                     font-size:1rem;
                     line-height:1.4;
                     padding:14px 22px;
@@ -981,7 +981,7 @@ class LavendelHygiene_Gating {
                     <div class="wc-block-components-notice-banner__content">%s</div>
                 </div>
             </div>',
-            esc_html( $message )
+            wp_kses_post( $message )
         );
 
         return $style . $notice_html . $block_content;
