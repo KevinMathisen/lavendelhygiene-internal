@@ -164,7 +164,7 @@ final class LH_Ttx_Pricing_Hooks {
         echo '<div class="lh-ttx-savings" style="margin-bottom:20px;">';
         echo '<small>';
         echo esc_html(sprintf(
-            __('Veiledende pris: %s. Din rabatt %s%%.', 'lh-ttx'),
+            __('Veiledende pris: %s. Din rabatt: %s%%.', 'lh-ttx'),
             wp_strip_all_tags(wc_price($regular)),
             $this->format_pct($pct)
         ));
