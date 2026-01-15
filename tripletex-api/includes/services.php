@@ -411,7 +411,7 @@ final class LH_Ttx_Products_Service {
      * @param int|null $new_price (if null we get new price from tripletex)
      * @return true|\WP_Error
      */
-    public function sync_price_from_tripletex(int $product_id, ?int $new_price = null) {
+    public function sync_price_from_tripletex(int $product_id, ?float $new_price = null) {
         $product = wc_get_product($product_id);
         if (!$product) return new WP_Error('product_missing', __('Finner ikke produkt.', 'lh-ttx'));
 
@@ -427,7 +427,7 @@ final class LH_Ttx_Products_Service {
             $price = $new_price;
         }
 
-        // Apply price (choose regular or sale strategy)
+        // Apply price
         $product->set_regular_price(wc_format_decimal((float) $price, 2));
         $product->save();
 
