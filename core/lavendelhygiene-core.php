@@ -884,7 +884,14 @@ class LavendelHygiene_Gating {
         if ( ! function_exists( 'is_product' ) || ! is_product() ) return;
 
         if ( ! is_user_logged_in() ) {
-            echo '<div class="woocommerce-info">' . esc_html__( '<a href="/my-account/">Logg inn</a> for å se pris.', 'lavendelhygiene' ) . '</div>';
+            $login_url = wc_get_page_permalink( 'myaccount' );
+
+            echo '<div class="woocommerce-info">' . wp_kses_post(
+                sprintf(
+                    __( '<a href="%s">Logg inn</a> for å se pris.', 'lavendelhygiene' ),
+                    esc_url( $login_url )
+                )
+            ) . '</div>';
             return;
         }
         if ( LavendelHygiene_Core::user_is_pending( get_current_user_id() ) ) {
