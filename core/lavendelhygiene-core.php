@@ -884,12 +884,14 @@ class LavendelHygiene_Gating {
         if ( ! function_exists( 'is_product' ) || ! is_product() ) return;
 
         if ( ! is_user_logged_in() ) {
-            $login_url = wc_get_page_permalink( 'myaccount' );
+            $login_url   = wc_get_page_permalink( 'myaccount' );
+            $contact_url = home_url( '/kontakt/' );
 
             echo '<div class="woocommerce-info">' . wp_kses_post(
                 sprintf(
-                    __( '<a href="%s">Logg inn</a> for å se pris.', 'lavendelhygiene' ),
-                    esc_url( $login_url )
+                    __( '<a href="%s">Logg inn</a> for å se pris, eller <a href="%s">kontakt oss</a> for tilbud.', 'lavendelhygiene' ),
+                    esc_url( $login_url ),
+                    esc_url( $contact_url )
                 )
             ) . '</div>';
             return;
@@ -911,8 +913,13 @@ class LavendelHygiene_Gating {
 
         if ( ! $enabled ) return;
 
+        $contact_url = home_url( '/kontakt/' );
+
         echo '<div class="woocommerce-info">' . wp_kses_post(
-            __( 'Pris varierer med volum og leveringsbetingelser, <a href="/kontakt">kontakt oss</a> for tilbud.', 'lavendelhygiene' )
+            sprintf(
+                __( 'Pris varierer med volum og leveringsbetingelser, <a href="%s">kontakt oss</a> for tilbud.', 'lavendelhygiene' ),
+                esc_url( $contact_url )
+            )
         ) . '</div>';
     }
 
@@ -933,9 +940,14 @@ class LavendelHygiene_Gating {
 
         if ( ! in_array( (string) $product->get_sku(), $target_skus, true ) ) return;
 
-        echo '<div class="woocommerce-info">' .
-            wp_kses_post( __( 'For kjøp av Hygienematter vil pris for montering komme i tillegg, <a href="/kontakt">kontakt oss</a> for spørsmål.', 'lavendelhygiene' ) ) .
-        '</div>';
+        $contact_url = home_url( '/kontakt/' );
+
+        echo '<div class="woocommerce-info">' . wp_kses_post(
+            sprintf(
+                __( 'For kjøp av Hygienematter vil pris for montering komme i tillegg, <a href="%s">kontakt oss</a> for spørsmål.', 'lavendelhygiene' ),
+                esc_url( $contact_url )
+            )
+        ) . '</div>';
     }
 
 
@@ -1235,3 +1247,11 @@ class LavendelHygiene_ProductDocsTab {
 
 /* ---------- Bootstrap ---------- */
 new LavendelHygiene_Core();
+
+
+
+
+
+/* Notes
+    <p><span class="lh-tip" data-tip="Produkt blir sendt fra vårt lager i Norge.">Lagervare</span></p>
+*/
