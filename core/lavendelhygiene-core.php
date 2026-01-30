@@ -1204,12 +1204,9 @@ class LavendelHygiene_ProductDocsTab {
         global $product;
         if ( ! $product instanceof WC_Product ) { return $tabs; }
 
-        $docs = $this->get_docs_for_product( $product );
-        if ( empty( $docs ) ) { return $tabs; }
-
         $tabs['lavh_docs'] = [
             'title'    => __( 'Relaterte dokumenter', 'lavendelhygiene' ),
-            'priority' => 40, // after Description (10) & Additional info (20), before Reviews (30) or adjust as needed
+            'priority' => 40,
             'callback' => [ $this, 'render_docs_tab' ],
         ];
         return $tabs;
@@ -1223,9 +1220,19 @@ class LavendelHygiene_ProductDocsTab {
 
         if ( ! $product instanceof WC_Product ) { return; }
 
-        $docs = $this->get_docs_for_product( $product );
+        $docs        = $this->get_docs_for_product( $product );
+        $contact_url = home_url( '/kontakt/' );
+
+        // Reusable "missing docs" message (shown in both cases)
+        $missing_docs_message = wp_kses_post(
+            sprintf(
+                __( 'Finner du ikke dokumentasjonen du leter etter? <a href="%s">Kontakt oss</a>, så kan vi sende den til deg.', 'lavendelhygiene' ),
+                esc_url( $contact_url )
+            )
+        );
+
         if ( empty( $docs ) ) {
-            echo '<p>' . esc_html__( 'Ingen dokumentasjon for dette produktet. Kontakt oss hvis du trenger dokumenter for produktet.', 'lavendelhygiene' ) . '</p>';
+            echo '<p>' . $missing_docs_message . '</p>';
             return;
         }
 
@@ -1241,6 +1248,9 @@ class LavendelHygiene_ProductDocsTab {
         }
 
         echo '</ul>';
+
+        echo '<p class="lavh-product-docs__missing">' . $missing_docs_message . '</p>';
+
         echo '</div>';
     }
 }
