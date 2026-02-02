@@ -21,7 +21,6 @@ final class LH_Ttx_Webhooks {
     /* ------------------------ Handler ------------------------ */
 
     public function permission_check(\WP_REST_Request $request) {
-        LH_Ttx_Logger::info('Webhook request revieved');
         $auth = $this->verify_auth($request);
         return is_wp_error($auth) ? $auth : true;
     }
@@ -237,6 +236,8 @@ final class LH_Ttx_Webhooks {
             $token = trim(substr($auth, 7));
             if (hash_equals($secret, $token)) return true;
         }
+
+        LH_Ttx_Logger::info(' - Unauthorized webhook request recieved');
 
         return new \WP_Error('unauthorized', __('Ugyldig eller manglende webhook-autentisering.', 'lh-ttx'));
     }
