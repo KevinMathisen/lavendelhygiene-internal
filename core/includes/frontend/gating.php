@@ -40,7 +40,7 @@ class LavendelHygiene_Gating {
         $sku = (string) $product->get_sku();
         if ( $sku === '' ) return false;
 
-        $catalog_only_skus = array( '100', '108', 'T-2011-02' );
+        $catalog_only_skus = array( '100', '108', '1000' );
 
         return in_array( $sku, $catalog_only_skus, true );
     }
