@@ -61,7 +61,7 @@ class LavendelHygiene_ProductMetaEditor {
                     'id'          => self::META_VOLUME_NOTICE,
                     'label'       => __( 'Show volume pricing notice', 'lavendelhygiene' ),
                     'description' => __( 'Show the volume/terms notice on the product page when prices are visible.', 'lavendelhygiene' ),
-                    'value'       => 'yes',
+                    'value'       => ( $vol_flag === 'yes' ) ? 'yes' : 'no',
                     'cbvalue'     => 'yes',
                     'desc_tip'    => false,
                 ] );
