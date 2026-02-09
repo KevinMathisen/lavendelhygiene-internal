@@ -549,9 +549,18 @@ final class LH_Ttx_Products_Service {
 function get_tripletex_product_id_from_wc_product(\WC_Product $product) {
     if (!$product) { return new WP_Error('wc_product_invalid', __('Ugyldig WooCommerce-produkt.', 'lh-ttx')); }
 
-    // Never resolve Tripletex ID for variable (parent) products.
-    // Variable parents are not purchasable; only variations (and simple products) should sync.
+    // Never resolve Tripletex ID for variable (parent) products
+    // Variable parents are not purchasable; only variations (and simple products) should sync
     if ($product->is_type('variable')) {
+        $product->update_meta_data('_tripletex_product_id', 0);
+        $product->save();
+        return 0;
+    }
+
+    // ignore catalog-only products
+    $ignore_skus = [ '100', '108', 'T-2011-02' ];
+    $sku = trim((string) $product->get_sku());
+    if ($sku !== '' && in_array($sku, $ignore_skus, true)) {
         $product->update_meta_data('_tripletex_product_id', 0);
         $product->save();
         return 0;
