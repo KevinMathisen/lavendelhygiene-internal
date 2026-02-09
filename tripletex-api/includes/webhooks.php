@@ -12,7 +12,7 @@ final class LH_Ttx_Webhooks {
                 [
                     'methods'             => 'POST',
                     'callback'            => [$this, 'handle_event'],
-                    'permission_callback' => [$this, 'permission_check'],
+                    'permission_callback' => '__return_true', // we handle auth 
                 ]
             );
         });
@@ -20,46 +20,63 @@ final class LH_Ttx_Webhooks {
 
     /* ------------------------ Handler ------------------------ */
 
-    public function permission_check(\WP_REST_Request $request) {
-        $auth = $this->verify_auth($request);
-        return is_wp_error($auth) ? $auth : true;
-    }
-
     public function handle_event(\WP_REST_Request $request) {
-        // auth handled by permission_check
+        try {
+            $auth = $this->verify_auth($request);
+            if (is_wp_error($auth)) { // Always 200 so Tripletex won't disable, but do not process
+                return new \WP_REST_Response([
+                    'ok'      => true,
+                    'ignored' => true,
+                    'reason'  => 'unauthorized',
+                ], 200);
+            }
 
-        $data = $this->decode_json($request);
-        if (is_wp_error($data)) {
-            return new \WP_REST_Response(['error' => $data->get_error_message()], 400);
+            $data = $this->decode_json($request);
+            if (is_wp_error($data)) { // Always 200 so Tripletex won't disable
+                return new \WP_REST_Response([
+                    'ok'      => true,
+                    'ignored' => true,
+                    'reason'  => 'invalid_json',
+                ], 200);
+            }
+
+            // Expected payload: { subscriptionId, event, id, value }
+            $subscriptionId = (int) ($data['subscriptionId'] ?? 0);
+            $event          = (string) ($data['event'] ?? '');
+            $objectId       = (int) ($data['id'] ?? 0);
+            $value          = is_array($data['value'] ?? null) ? $data['value'] : null; // null on *.delete
+            $requestId      = $request->get_header('x-tlx-request-id');
+
+            if ($event === '' || $objectId <= 0) {
+                return new \WP_REST_Response(['error' => __('Ugyldig payload: mangler event/id.', 'lh-ttx')], 400);
+            }
+
+            // Route by event prefix
+            if (strpos($event, 'product.') === 0) {
+                return $this->handle_product_event($event, $objectId, $value, $subscriptionId, $requestId);
+            }
+            if (strpos($event, 'order.') === 0) {
+                return $this->handle_order_event($event, $objectId, $value, $subscriptionId, $requestId);
+            }
+
+            LH_Ttx_Logger::info('Webhook ignored (unsupported event)', [
+                'event'          => $event,
+                'subscriptionId' => $subscriptionId,
+                'id'             => $objectId,
+            ]);
+
+            return new \WP_REST_Response(['ok' => true, 'ignored' => true], 200);
+            
+        } catch (\Throwable $e) {
+            LH_Ttx_Logger::error('Webhook handler exception', [
+                'message' => $e->getMessage(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
+            ]);
+
+            // Always 200 so Tripletex won't disable, even if something blew up internally
+            return new \WP_REST_Response(['ok' => true, 'ignored' => true, 'reason' => 'exception'], 200);
         }
-
-        // Expected payload: { subscriptionId, event, id, value }
-        $subscriptionId = (int) ($data['subscriptionId'] ?? 0);
-        $event          = (string) ($data['event'] ?? '');
-        $objectId       = (int) ($data['id'] ?? 0);
-        $value          = is_array($data['value'] ?? null) ? $data['value'] : null; // null on *.delete
-        $requestId      = $request->get_header('x-tlx-request-id');
-
-        if ($event === '' || $objectId <= 0) {
-            return new \WP_REST_Response(['error' => __('Ugyldig payload: mangler event/id.', 'lh-ttx')], 400);
-        }
-
-        // Route by event prefix
-        if (strpos($event, 'product.') === 0) {
-            return $this->handle_product_event($event, $objectId, $value, $subscriptionId, $requestId);
-        }
-        if (strpos($event, 'order.') === 0) {
-            return $this->handle_order_event($event, $objectId, $value, $subscriptionId, $requestId);
-        }
-
-        LH_Ttx_Logger::info('Webhook ignored (unsupported event)', [
-            'event'          => $event,
-            'subscriptionId' => $subscriptionId,
-            'id'             => $objectId,
-        ]);
-
-        // Return 200 to avoid disabling the subscription even if we ignore it
-        return new \WP_REST_Response(['ok' => true, 'ignored' => true], 200);
     }
 
     /* --------------------- Event types ---------------------- */
