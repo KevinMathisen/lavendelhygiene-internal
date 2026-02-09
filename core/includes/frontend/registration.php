@@ -42,6 +42,13 @@ class LavendelHygiene_Registration {
             'Kjøkken'                      => 'Kjøkken',
             'Annet'                        => 'Annet',
         ];
+        $country_options = [
+            'NO' => 'NO',
+            'SE' => 'SE',
+            'DK' => 'DK',
+            'FI' => 'FI',
+            'GB' => 'GB',
+        ];
 
         // Prefill posted values (after validation error)
         $posted = function( $key, $default = '' ) {
@@ -186,8 +193,13 @@ class LavendelHygiene_Registration {
             </div>
             <p class="form-row">
                 <label for="billing_country"><?php esc_html_e( 'Land', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
-                <input type="text" class="input-text" name="billing_country" id="billing_country"
-                    value="<?php echo $posted( 'billing_country', 'NO' ); ?>" required />
+                <select name="billing_country" id="billing_country" class="input-select" required>
+                    <?php foreach ( $country_options as $value => $label ) : ?>
+                        <option value="<?php echo esc_attr( $value ); ?>" <?php selected( $posted( 'billing_country', 'NO' ), $value ); ?>>
+                            <?php echo esc_html( $label ); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
             </p>
 
             <!-- samme fraktaddresse checkbox -->
@@ -226,8 +238,13 @@ class LavendelHygiene_Registration {
                 </div>
                 <p class="form-row">
                     <label for="shipping_country"><?php esc_html_e( 'Land', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
-                    <input type="text" class="input-text" name="shipping_country" id="shipping_country"
-                        value="<?php echo $posted( 'shipping_country', 'NO' ); ?>" required />
+                    <select name="shipping_country" id="shipping_country" class="input-select" required>
+                        <?php foreach ( $country_options as $value => $label ) : ?>
+                            <option value="<?php echo esc_attr( $value ); ?>" <?php selected( $posted( 'shipping_country', 'NO' ), $value ); ?>>
+                                <?php echo esc_html( $label ); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </p>
             </div>
         </div>
