@@ -285,8 +285,28 @@ class LavendelHygiene_Registration {
         }
 
         // orgnr: norwegian mod11 checksum
-        if ( ! empty( $_POST['orgnr'] ) && ! $this->is_valid_no_orgnr( (string) $_POST['orgnr'] ) ) {
-            $errors->add( 'orgnr_invalid', __( 'Ugyldig organisasjonsnummer.', 'lavendelhygiene' ) );
+        if ( ! empty( $_POST['orgnr'] ) ) {
+            $orgnr_raw    = (string) wp_unslash( $_POST['orgnr'] );
+            $orgnr_digits = preg_replace( '/\D+/', '', $orgnr_raw );
+
+            if ( ! $this->is_valid_no_orgnr( $orgnr_digits ) ) {
+                $errors->add( 'orgnr_invalid', __( 'Ugyldig organisasjonsnummer.', 'lavendelhygiene' ) );
+            } else {
+                // prevent duplicate org numbers
+                $existing = get_users( [
+                    'fields'     => 'ids',
+                    'number'     => 1,
+                    'meta_key'   => LavendelHygiene_Core::META_ORGNR,
+                    'meta_value' => $orgnr_digits,
+                ] );
+
+                if ( ! empty( $existing ) ) {
+                    $errors->add(
+                        'orgnr_duplicate',
+                        __( 'En bruker med dette organisasjonsnummeret er allerede registrert.', 'lavendelhygiene' )
+                    );
+                }
+            }
         }
 
         return $errors;
