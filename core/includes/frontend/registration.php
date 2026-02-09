@@ -50,6 +50,10 @@ class LavendelHygiene_Registration {
 
         $posted_sector    = $posted( 'company_sector' );
         $use_ehf_checked  = isset( $_POST['use_ehf'] ) ? (bool) $_POST['use_ehf'] : true; // default checked
+        $same_shipping_checked = isset( $_POST['shipping_same_as_billing'] )
+            ? (bool) $_POST['shipping_same_as_billing']
+            : true;
+
         $posted_contact_first   = $posted( 'contact_first_name' );
         $posted_contact_last    = $posted( 'contact_last_name' );
         ?>
@@ -67,13 +71,39 @@ class LavendelHygiene_Registration {
         </style>
         <script>
             document.addEventListener('DOMContentLoaded', function(){
-                // Localize the native Woo labels (email/password) to Norwegian if needed
                 var form = document.querySelector('form.register');
                 if(!form) return;
                 var emailLabel = form.querySelector('label[for="reg_email"]');
                 if(emailLabel && /email/i.test(emailLabel.textContent)) emailLabel.textContent = 'E-post *';
                 var passLabel = form.querySelector('label[for="reg_password"]');
                 if(passLabel && /password|passord/i.test(passLabel.textContent)) passLabel.textContent = 'Passord *';
+
+                var same = document.getElementById('shipping_same_as_billing');
+                var wrapper = document.getElementById('shipping_fields_wrapper');
+                if (!same || !wrapper) return;
+
+                var shippingIds = ['shipping_address_1','shipping_postcode','shipping_city','shipping_country'];
+
+                function setShippingRequired(isRequired) {
+                    shippingIds.forEach(function(id){
+                        var el = document.getElementById(id);
+                        if (!el) return;
+                        if (isRequired) el.setAttribute('required', 'required');
+                        else el.removeAttribute('required');
+                    });
+                }
+                function updateShippingVisibility() {
+                    if (same.checked) {
+                        wrapper.style.display = 'none';
+                        setShippingRequired(false);
+                    } else {
+                        wrapper.style.display = '';
+                        setShippingRequired(true);
+                    }
+                }
+
+                updateShippingVisibility();
+                same.addEventListener('change', updateShippingVisibility);
             });
         </script>
 
@@ -160,35 +190,53 @@ class LavendelHygiene_Registration {
                     value="<?php echo $posted( 'billing_country', 'NO' ); ?>" required />
             </p>
 
-            <!-- Leveringsadresse -->
-            <div class="lavendelhygiene-section-title"><?php esc_html_e( 'Leveringsadresse', 'lavendelhygiene' ); ?></div>
-            <p class="form-row form-row-wide">
-                <label for="shipping_address_1"><?php esc_html_e( 'Adresse', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
-                <input type="text" class="input-text" name="shipping_address_1" id="shipping_address_1"
-                    value="<?php echo $posted( 'shipping_address_1' ); ?>" required />
+            <!-- samme fraktaddresse checkbox -->
+            <p class="form-row lavendelhygiene-checkbox">
+                <label style="display:flex;align-items:center;gap:8px;">
+                    <input
+                        type="checkbox"
+                        name="shipping_same_as_billing"
+                        id="shipping_same_as_billing"
+                        value="1"
+                        <?php checked( $same_shipping_checked, true ); ?>
+                    />
+                    <span><?php esc_html_e( 'Leveringsadressen er samme som fakturaadressen', 'lavendelhygiene' ); ?></span>
+                </label>
             </p>
-            <div class="lavendelhygiene-two">
-                <p class="form-row">
-                    <label for="shipping_postcode"><?php esc_html_e( 'Postnummer', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
-                    <input type="text" class="input-text" name="shipping_postcode" id="shipping_postcode"
-                        value="<?php echo $posted( 'shipping_postcode' ); ?>" required />
+
+            <!-- Leveringsadresse -->
+            <div id="shipping_fields_wrapper" <?php echo $same_shipping_checked ? 'style="display:none;"' : ''; ?>>
+                <div class="lavendelhygiene-section-title"><?php esc_html_e( 'Leveringsadresse', 'lavendelhygiene' ); ?></div>
+                <p class="form-row form-row-wide">
+                    <label for="shipping_address_1"><?php esc_html_e( 'Adresse', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
+                    <input type="text" class="input-text" name="shipping_address_1" id="shipping_address_1"
+                        value="<?php echo $posted( 'shipping_address_1' ); ?>" required />
                 </p>
+                <div class="lavendelhygiene-two">
+                    <p class="form-row">
+                        <label for="shipping_postcode"><?php esc_html_e( 'Postnummer', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
+                        <input type="text" class="input-text" name="shipping_postcode" id="shipping_postcode"
+                            value="<?php echo $posted( 'shipping_postcode' ); ?>" required />
+                    </p>
+                    <p class="form-row">
+                        <label for="shipping_city"><?php esc_html_e( 'Poststed', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
+                        <input type="text" class="input-text" name="shipping_city" id="shipping_city"
+                            value="<?php echo $posted( 'shipping_city' ); ?>" required />
+                    </p>
+                </div>
                 <p class="form-row">
-                    <label for="shipping_city"><?php esc_html_e( 'Poststed', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
-                    <input type="text" class="input-text" name="shipping_city" id="shipping_city"
-                        value="<?php echo $posted( 'shipping_city' ); ?>" required />
+                    <label for="shipping_country"><?php esc_html_e( 'Land', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
+                    <input type="text" class="input-text" name="shipping_country" id="shipping_country"
+                        value="<?php echo $posted( 'shipping_country', 'NO' ); ?>" required />
                 </p>
             </div>
-            <p class="form-row">
-                <label for="shipping_country"><?php esc_html_e( 'Land', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
-                <input type="text" class="input-text" name="shipping_country" id="shipping_country"
-                    value="<?php echo $posted( 'shipping_country', 'NO' ); ?>" required />
-            </p>
         </div>
         <?php
     }
 
     public function validate_register_fields( $errors, $username, $email ) {
+        $same_shipping = isset( $_POST['shipping_same_as_billing'] );
+
         $required = [
             'company_name'       => __( 'Firmanavn', 'lavendelhygiene' ),
             'contact_first_name'  => __( 'Kontaktperson fornavn', 'lavendelhygiene' ),
@@ -200,11 +248,16 @@ class LavendelHygiene_Registration {
             'billing_postcode'   => __( 'Faktura postnummer', 'lavendelhygiene' ),
             'billing_city'       => __( 'Faktura poststed', 'lavendelhygiene' ),
             'billing_country'    => __( 'Faktura land', 'lavendelhygiene' ),
-            'shipping_address_1' => __( 'Leveringsadresse', 'lavendelhygiene' ),
-            'shipping_postcode'  => __( 'Levering postnummer', 'lavendelhygiene' ),
-            'shipping_city'      => __( 'Levering poststed', 'lavendelhygiene' ),
-            'shipping_country'   => __( 'Levering land', 'lavendelhygiene' ),
         ];
+        if ( ! $same_shipping ) {
+            $required += [
+                'shipping_address_1' => __( 'Leveringsadresse', 'lavendelhygiene' ),
+                'shipping_postcode'  => __( 'Levering postnummer', 'lavendelhygiene' ),
+                'shipping_city'      => __( 'Levering poststed', 'lavendelhygiene' ),
+                'shipping_country'   => __( 'Levering land', 'lavendelhygiene' ),
+            ];
+        }
+
         foreach ( $required as $key => $label ) {
             if ( empty( $_POST[ $key ] ) ) {
                 $errors->add(
@@ -270,6 +323,23 @@ class LavendelHygiene_Registration {
                 update_user_meta( $customer_id, $meta_key, sanitize_text_field( wp_unslash( $_POST[ $posted ] ) ) );
             }
         }
+
+        $same_shipping = isset( $_POST['shipping_same_as_billing'] );
+        if ( $same_shipping ) {
+            $copy = [
+                'billing_address_1' => 'shipping_address_1',
+                'billing_postcode'  => 'shipping_postcode',
+                'billing_city'      => 'shipping_city',
+                'billing_country'   => 'shipping_country',
+            ];
+            foreach ( $copy as $billing_post_key => $shipping_meta_key ) {
+                if ( isset( $_POST[ $billing_post_key ] ) ) {
+                    update_user_meta($customer_id, $shipping_meta_key,
+                        sanitize_text_field( wp_unslash( $_POST[ $billing_post_key ] ) ));
+                }
+            }
+        }
+
         if ( isset( $_POST['company_name'] ) ) { // also set shipping company to company name
             update_user_meta($customer_id, 'shipping_company', sanitize_text_field( wp_unslash( $_POST['company_name'] ) ));
         }
