@@ -7,7 +7,7 @@ class LavendelHygiene_Gating {
         add_action( 'woocommerce_account_content',                [ $this, 'maybe_show_pending_notice' ] );
         add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_product_page_notice' ], 12 );
         add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_volume_pricing_notice' ], 12 );
-        add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_dycem_pricing_notice' ], 12 );
+        add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_not_purchasable_pricing_notice' ], 12 );
 
         add_filter( 'render_block', [ $this, 'inject_notice_for_blocks_cart_checkout' ], 10, 2 );
 
@@ -18,15 +18,57 @@ class LavendelHygiene_Gating {
         add_filter( 'woocommerce_variation_is_purchasable',       [ $this, 'filter_variation_is_purchasable' ], 10, 2 );
         add_filter( 'woocommerce_available_variation',            [ $this, 'filter_available_variation_price_html' ], 10, 3 );
         add_action( 'template_redirect',                          [ $this, 'enforce_cart_checkout_gate' ], 20 );
+        
+        // gating: prevent catalog-only products from add to cart
+        add_filter( 'woocommerce_add_to_cart_validation',         [ $this, 'block_add_to_cart_for_catalog_only' ], 10, 3 );
+        add_filter( 'woocommerce_loop_add_to_cart_link',          [ $this, 'maybe_remove_loop_add_to_cart_link' ], 10, 2 );
     }
 
     /* ---------------- Pricing & purchasing ---------------- */
+
+    private function is_catalog_only_product( $product ) {
+        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+            return false;
+        }
+
+        // Normalize variations to parent
+        if ( $product->is_type( 'variation' ) ) {
+            $product = wc_get_product( $product->get_parent_id() );
+            if ( ! $product ) return false;
+        }
+
+        $sku = (string) $product->get_sku();
+        if ( $sku === '' ) return false;
+
+        $catalog_only_skus = array( '100', '108', 'T-2011-02' );
+
+        return in_array( $sku, $catalog_only_skus, true );
+    }
+
+    public function block_add_to_cart_for_catalog_only( $passed, $product_id, $quantity ) {
+        $product = wc_get_product( $product_id );
+        if ( $this->is_catalog_only_product( $product ) ) {
+            wc_add_notice(
+                __( 'Dette produktet selges ikke direkte i nettbutikken. Kontakt oss for tilbud eller mer informasjon.', 'lavendelhygiene' ),
+                'notice'
+            );
+            return false;
+        }
+        return $passed;
+    }
+
+    public function maybe_remove_loop_add_to_cart_link( $html, $product ) {
+        return $this->is_catalog_only_product( $product ) ? '' : $html;
+    }
 
     public function filter_price_html( $price_html, $product ) {
         if ( current_user_can( 'manage_woocommerce' ) || current_user_can( 'manage_options' ) ) {
             return $price_html;
         }
         if ( LavendelHygiene_Core::user_is_restricted() ) {
+            return '';
+        }
+        if ( $this->is_catalog_only_product( $product ) ) {
             return '';
         }
         return $price_html; // approved
@@ -39,15 +81,34 @@ class LavendelHygiene_Gating {
         if ( LavendelHygiene_Core::user_is_restricted() ) {
             $data['price_html'] = ''; //  hide the per-variation price_html payload used on variable products
         }
+        if ( $this->is_catalog_only_product( $product ) ) {
+            $data['price_html'] = '';
+        }
         return $data;
     }
 
     public function filter_is_purchasable( $purchasable, $product ) {
-        return LavendelHygiene_Core::user_is_restricted() ? false : $purchasable;
+        if ( LavendelHygiene_Core::user_is_restricted() ) {
+            return false;
+        }
+
+        if ( $this->is_catalog_only_product( $product ) ) {
+            return false;
+        }
+
+        return $purchasable;
     }
 
     public function filter_variation_is_purchasable( $purchasable, $variation ) {
-        return LavendelHygiene_Core::user_is_restricted() ? false : $purchasable;
+        if ( LavendelHygiene_Core::user_is_restricted() ) {
+            return false;
+        }
+
+        if ( $this->is_catalog_only_product( $variation ) ) {
+            return false;
+        }
+
+        return $purchasable;
     }
 
     /* ---------------- Cart/checkout access ---------------- */
@@ -120,31 +181,25 @@ class LavendelHygiene_Gating {
         ) . '</div>';
     }
 
-    public function maybe_dycem_pricing_notice() {
+    public function maybe_not_purchasable_pricing_notice() {
         if ( ! function_exists( 'is_product' ) || ! is_product() ) return;
         if ( LavendelHygiene_Core::user_is_restricted() ) return;
 
         $product = wc_get_product( get_queried_object_id() );
         if ( ! $product ) return;
 
-        // If somehow we're on a variation object, normalize to the parent.
-        if ( $product->is_type( 'variation' ) ) {
-            $product = wc_get_product( $product->get_parent_id() );
-            if ( ! $product ) return;
-        }
-
-        $target_skus = array( '100', '108' ); // keep as strings
-
-        if ( ! in_array( (string) $product->get_sku(), $target_skus, true ) ) return;
+        if ( ! $this->is_catalog_only_product( $product ) ) return;
 
         $contact_url = home_url( '/kontakt/' );
 
         echo '<div class="woocommerce-info">' . wp_kses_post(
             sprintf(
-                __( 'For kjøp av Hygienematter vil pris for montering komme i tillegg, <a href="%s">kontakt oss</a> for spørsmål.', 'lavendelhygiene' ),
+                __( 'Produktet krever tilpasning og installasjon. Pris fastsettes basert på ønsket løsning og omfang, og selges derfor ikke direkte i nettbutikken.<br><a href="%s">Kontakt oss</a> for tilbud eller mer informasjon!', 'lavendelhygiene' ),
                 esc_url( $contact_url )
             )
         ) . '</div>';
+
+        // For kjøp av Hygienematter vil pris for montering komme i tillegg, <a href="%s">kontakt oss</a> for spørsmål.
     }
 
 
