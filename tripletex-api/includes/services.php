@@ -68,11 +68,21 @@ final class LH_Ttx_Customers_Service {
         $remote = ttx_customers_get($ttx_id);
         if (is_wp_error($remote)) return $remote;
 
-        // 2) Build minimal update payload with only changed fields
+        // update delivery adress if modified
+        $delivery_updated = $this->sync_delivery_address_object($user_id, (array) $remote);
+        if (is_wp_error($delivery_updated)) return $delivery_updated;
+
+        // build minimal update payload with only changed fields (and not delivery address)
         $update = $this->build_customer_update_payload_from_map($user_id, (array) $remote);
 
-        if (empty($update)) {
+        if (empty($update) && !$delivery_updated) {
             LH_Ttx_Logger::info('Tripletex: no customer changes to sync', [
+                'user_id' => $user_id,
+                'ttx_id'  => $ttx_id,
+            ]);
+            return true;
+        } elseif (empty($update) && $delivery_updated) {
+            LH_Ttx_Logger::info('Tripletex: synced user delivery address to tripletex', [
                 'user_id' => $user_id,
                 'ttx_id'  => $ttx_id,
             ]);
@@ -102,9 +112,7 @@ final class LH_Ttx_Customers_Service {
         update_user_meta($user_id, 'tripletex_linked_by', get_current_user_id());
         update_user_meta($user_id, 'tripletex_linked_at', current_time('mysql'));
 
-        /**
-         * Maintain compatibility with LH core actions
-         */
+        // Maintain compatibility with LH core actions
         do_action('lavendelhygiene_tripletex_linked', $user_id, (string) $ttx_id, get_current_user_id());
     }
 
@@ -137,6 +145,20 @@ final class LH_Ttx_Customers_Service {
         $ship_city    = (string) get_user_meta($user_id, 'shipping_city', true);
         $ship_country = (string) get_user_meta($user_id, 'shipping_country', true) ?: 'NO';
 
+        // Shipping phone (custom)
+        $ship_phone_raw = (string) get_user_meta($user_id, 'shipping_phone', true);
+        $ship_phone_raw = $ship_phone_raw ?: $phone;
+
+        $ttx_ship_phone = trim((string) $ship_phone_raw);
+        if (empty($ttx_ship_phone)) {
+            $ttx_ship_line1 = ($ship_addr_1 ?: $inv_addr_1) ?: null;
+            $ttx_ship_line2 = ($ship_addr_2 ?: $inv_addr_2) ?: null;
+        } else {
+            $ttx_ship_line1 = ('Tlf ' . $ttx_ship_phone);
+            $ttx_ship_line2 = ($ship_addr_1 ?: $inv_addr_1) ?: null;
+        }
+        
+
         // Tripletex Customer object (partial allowed on PUT)
         $payload = [
             'name'               => $for_create ? ($name ?: null) : null,
@@ -154,8 +176,8 @@ final class LH_Ttx_Customers_Service {
                 'country'      => [ 'isoAlpha2Code' => $inv_country ],
             ],
             'deliveryAddress' => [
-                'addressLine1' => ($ship_addr_1 ?: $inv_addr_1) ?: null,
-                'addressLine2' => ($ship_addr_2 ?: $inv_addr_2) ?: null,
+                'addressLine1' => $ttx_ship_line1,
+                'addressLine2' => $ttx_ship_line2,
                 'postalCode'   => ($ship_post   ?: $inv_post)   ?: null,
                 'city'         => ($ship_city   ?: $inv_city)   ?: null,
                 'country'      => [ 'isoAlpha2Code' => ($ship_country ?: $inv_country) ],
@@ -175,8 +197,8 @@ final class LH_Ttx_Customers_Service {
     }
 
     /**
-     * Build a minimal update payload with only changed fields vs Tripletex.
-     * Avoids sending unchanged postal/delivery addresses (prevents duplicates).
+     * Build a minimal update payload with only changed fields vs Tripletex
+     * Avoids sending unchanged postal/delivery addresses (prevents duplicates)
      */
     private function build_customer_update_payload_from_map(int $user_id, array $remote): array {
         $local = $this->map_user_to_tripletex_payload($user_id, ['for_create' => false]);
@@ -193,9 +215,9 @@ final class LH_Ttx_Customers_Service {
             }
         }
 
-        // Addresses: if any field differs, send the full address (including country).
-        foreach (['postalAddress','deliveryAddress'] as $addrKey) {
-            if (!isset($local[$addrKey])) continue;
+        // Postal address: if any field differs, send the full address
+        $addrKey = 'postalAddress';
+        if (isset($local[$addrKey])) {
             $remoteAddr = (array) ($remote[$addrKey] ?? []);
             $localAddr  = (array) $local[$addrKey];
 
@@ -230,6 +252,57 @@ final class LH_Ttx_Customers_Service {
     }
     private function norm_strip_space(string $v): string {
         return preg_replace('/\s+/', '', (string) $v);
+    }
+
+    /**
+     * Update Tripletex deliveryAddress object to prevent duplicates.
+     *
+     * @return bool|\WP_Error True if updated, false if no changes / no deliveryAddress id.
+     */
+    private function sync_delivery_address_object(int $user_id, array $remote): bool|\WP_Error {
+        $localDel  = $this->map_user_to_tripletex_payload($user_id, ['for_create' => false])['deliveryAddress'] ?? null;
+        $remoteDel = (array) ($remote['deliveryAddress'] ?? []);
+        $delId     = (int) ($remoteDel['id'] ?? 0);
+
+        if (!is_array($localDel) || $delId <= 0) return false;
+
+        $desired = (array) $localDel;
+        $diff    = [];
+
+        // field => comparator method
+        $cmp = [
+            'addressLine1' => 'equals_ci_space',
+            'addressLine2' => 'equals_ci_space',
+            'city'         => 'equals_ci_space',
+            'postalCode'   => 'equals_strip_space',
+        ];
+
+        foreach ($cmp as $field => $fn) {
+            $l = (string) ($desired[$field] ?? '');
+            if ($l === '') continue;
+
+            $r = (string) ($remoteDel[$field] ?? '');
+            if (!$this->{$fn}($l, $r)) $diff[$field] = $l;
+        }
+
+        $lC = (string) ($desired['country']['isoAlpha2Code'] ?? '');
+        if ($lC !== '') {
+            $rC = (string) ($remoteDel['country']['isoAlpha2Code'] ?? '');
+            if (!$this->equals_ci_space($lC, $rC)) $diff['country'] = ['isoAlpha2Code' => $lC];
+        }
+
+        if (!$diff) return false;
+
+        $res = ttx_delivery_address_update($delId, $diff);
+        if (is_wp_error($res)) return $res;
+
+        LH_Ttx_Logger::info('Tripletex: updated deliveryAddress', [
+            'user_id'            => $user_id,
+            'deliveryAddress_id' => $delId,
+            'fields'             => array_keys($diff),
+        ]);
+
+        return true;
     }
 }
 
