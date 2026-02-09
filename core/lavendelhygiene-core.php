@@ -492,7 +492,7 @@ class LavendelHygiene_Registration {
      /**
      * Renders extra registration fields (all labels in Norwegian) and styles the layout:
      * - E-post
-     * - Kontaktperson fornavn + etternavn (TODO)
+     * - Kontaktperson fornavn + etternavn
      * - Telefon
      * - Firmanavn
      * - Organisasjonsnummer + Bransje/Næring
@@ -507,13 +507,15 @@ class LavendelHygiene_Registration {
         $sector_options = [
             'Datasenter'                   => 'Datasenter',
             'Laboratorier'                 => 'Laboratorier',
-            'Helse/Sykehus'                => 'Helse/Sykehus',
-            'Bakeri'                       => 'Bakeri',
+            'Sykehus'                      => 'Sykehus',
+            'Sykehusapotek'                => 'Sykehusapotek',
+            'Farmasøytisk'                 => 'Farmasøytisk',
             'Fiskeoppdrett'                => 'Fiskeoppdrett',
-            'Kjøttindustri'                => 'Kjøttindustri',
-            'Bryggeri'                     => 'Bryggeri',
+            'Bryggeri og drikkevarer'      => 'Bryggeri og drikkevarer',          
             'Meieri'                       => 'Meieri',
-            'Annen Næringsmiddelindustri' => 'Annen Næringsmiddelindustri',
+            'Bakeri'                       => 'Bakeri',
+            'Annen Næringsmiddelindustri'  => 'Annen Næringsmiddelindustri',
+            'Kjøkken'                      => 'Kjøkken',
             'Annet'                        => 'Annet',
         ];
 
