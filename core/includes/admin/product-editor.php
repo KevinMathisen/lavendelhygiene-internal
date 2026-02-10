@@ -7,12 +7,16 @@ class LavendelHygiene_ProductMetaEditor {
     // Product meta keys
     const META_VOLUME_NOTICE  = 'show_volume_pricing_notice';
     const META_DOCS_JSON      = '_docs';
+    const META_TRIPLETEX_PRODUCT_ID = '_tripletex_product_id';
 
     public function __construct() {
         add_filter( 'woocommerce_product_data_tabs', [ $this, 'add_tab' ] );
         add_action( 'woocommerce_product_data_panels', [ $this, 'render_panel' ] );
 
         add_action( 'woocommerce_admin_process_product_object', [ $this, 'save_product_fields' ] );
+
+        add_action( 'woocommerce_variation_options_pricing', [ $this, 'render_variation_tripletex_id_field' ], 10, 3 );
+        add_action( 'woocommerce_save_product_variation', [ $this, 'save_variation_tripletex_id_field' ], 10, 2 );
 
         add_action( 'admin_footer', [ $this, 'inline_admin_js' ] );
     }
@@ -38,6 +42,12 @@ class LavendelHygiene_ProductMetaEditor {
 
         $vol_flag = (string) get_post_meta( $product_id, self::META_VOLUME_NOTICE, true );
         $docs_raw = (string) get_post_meta( $product_id, self::META_DOCS_JSON, true );
+        $ttx_pid  = (int) get_post_meta( $product_id, self::META_TRIPLETEX_PRODUCT_ID, true );
+
+        // check if product is variable
+        $wc_product = wc_get_product( $product_id );
+        $is_variable_parent = ( $wc_product && $wc_product->is_type( 'variable' ) );
+
 
         $docs = [];
         if ( $docs_raw !== '' ) {
@@ -65,6 +75,26 @@ class LavendelHygiene_ProductMetaEditor {
                     'cbvalue'     => 'yes',
                     'desc_tip'    => false,
                 ] );
+
+                if ( ! $is_variable_parent ) {
+                    woocommerce_wp_text_input( [
+                        'id'                => self::META_TRIPLETEX_PRODUCT_ID,
+                        'label'             => __( 'Tripletex product ID', 'lavendelhygiene' ),
+                        'description'       => __( 'Optional. Overrides/sets the mapped Tripletex product id for this product. Use 0 to automatically select ID from Tripletex based on SKU.', 'lavendelhygiene' ),
+                        'desc_tip'          => true,
+                        'type'              => 'number',
+                        'custom_attributes' => [
+                            'step' => '1',
+                            'min'  => '0',
+                        ],
+                        'value'             => $ttx_pid > 0 ? (string) $ttx_pid : '0',
+                    ] );
+                } else {
+                    echo '<p class="form-field"><label>' . esc_html__( 'Tripletex product ID', 'lavendelhygiene' ) . '</label>'
+                       . '<span class="description">'
+                       . esc_html__( 'This is a variable product. Set Tripletex product ID per variation below (Variations tab).', 'lavendelhygiene' )
+                       . '</span></p>';
+                }
                 ?>
             </div>
 
@@ -126,6 +156,14 @@ class LavendelHygiene_ProductMetaEditor {
         $vol = isset( $_POST[ self::META_VOLUME_NOTICE ] ) ? 'yes' : 'no';
         $product->update_meta_data( self::META_VOLUME_NOTICE, $vol );
 
+        // TTX product id (int >= 0)
+        if ( ! $product->is_type( 'variable' ) && isset( $_POST[ self::META_TRIPLETEX_PRODUCT_ID ] ) ) {
+            $raw = wp_unslash( $_POST[ self::META_TRIPLETEX_PRODUCT_ID ] );
+            $pid = (int) preg_replace( '/\D+/', '', (string) $raw );
+
+            $product->update_meta_data( self::META_TRIPLETEX_PRODUCT_ID, max( 0, $pid ) );
+        }
+
         // docs rows => json object {label: url}
         $labels = isset( $_POST['lavh_docs_label'] ) ? (array) $_POST['lavh_docs_label'] : [];
         $urls   = isset( $_POST['lavh_docs_url'] ) ? (array) $_POST['lavh_docs_url'] : [];
@@ -151,6 +189,60 @@ class LavendelHygiene_ProductMetaEditor {
             $product->delete_meta_data( self::META_DOCS_JSON );
         } else {
             $product->update_meta_data( self::META_DOCS_JSON, wp_json_encode( $docs_map, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
+        }
+    }
+
+    public function render_variation_tripletex_id_field( $loop, $variation_data, $variation ) {
+        $variation_id = is_object( $variation ) && isset( $variation->ID ) ? (int) $variation->ID : 0;
+        if ( $variation_id <= 0 ) return;
+
+        $value = (int) get_post_meta( $variation_id, self::META_TRIPLETEX_PRODUCT_ID, true );
+        $value = $value > 0 ? (string) $value : '0';
+
+        $field_id   = 'lh_ttx_pid_' . (int) $loop;
+        $field_name = self::META_TRIPLETEX_PRODUCT_ID . '[' . (int) $loop . ']';
+        ?>
+        <div class="form-row form-row-full lh-ttx-variation-field">
+            <label for="<?php echo esc_attr( $field_id ); ?>" class="lh-ttx-variation-label">
+                <?php esc_html_e( 'Tripletex product ID', 'lavendelhygiene' ); ?>
+            </label>
+            <input
+                type="number"
+                class="short"
+                id="<?php echo esc_attr( $field_id ); ?>"
+                name="<?php echo esc_attr( $field_name ); ?>"
+                value="<?php echo esc_attr( $value ); ?>"
+                min="0"
+                step="1"
+            />
+            <p class="description">
+                <?php esc_html_e( 'Tripletex product id for this variation. Use 0 to automatically resolve from SKU.', 'lavendelhygiene' ); ?>
+            </p>
+        </div>
+        <?php
+    }
+
+    public function save_variation_tripletex_id_field( $variation_id, $i ) {
+        if ( ! current_user_can( 'edit_post', $variation_id ) ) return;
+
+        if ( ! isset( $_POST[ self::META_TRIPLETEX_PRODUCT_ID ] ) || ! is_array( $_POST[ self::META_TRIPLETEX_PRODUCT_ID ] ) ) {
+            return;
+        }
+
+        if ( ! array_key_exists( $i, $_POST[ self::META_TRIPLETEX_PRODUCT_ID ] ) ) {
+            return;
+        }
+
+        $raw = wp_unslash( $_POST[ self::META_TRIPLETEX_PRODUCT_ID ][ $i ] );
+        $pid = (int) preg_replace( '/\D+/', '', (string) $raw );
+        $pid = max( 0, $pid );
+
+        $variation = wc_get_product( $variation_id );
+        if ( $variation ) {
+            $variation->update_meta_data( self::META_TRIPLETEX_PRODUCT_ID, $pid );
+            $variation->save();
+        } else {
+            update_post_meta( $variation_id, self::META_TRIPLETEX_PRODUCT_ID, $pid );
         }
     }
 
