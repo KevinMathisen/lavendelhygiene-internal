@@ -23,7 +23,7 @@ function ttx_log_attempt(string $phase, array $ctx): void {
     if (isset($ctx['request']['headers']['Authorization'])) {
         $ctx['request']['headers']['Authorization'] = '[redacted]';
     }
-    LH_Ttx_Logger::info("Ttx request: {$phase}", $ctx);
+    // LH_Ttx_Logger::info("Ttx request: {$phase}", $ctx);
 }
 
 /** Join fields param (array|string) into Tripletex format */
