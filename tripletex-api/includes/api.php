@@ -536,24 +536,57 @@ function ttx_products_get_ttx_id_from_sku(string $product_sku) {
     $res = ttx_get('/product', [
         'productNumber' => $sku,
         'isInactive'    => 'false',
-        'fields'        => 'id',
+        'fields'        => 'id,priceExcludingVatCurrency',
     ]);
     if (is_wp_error($res)) return $res;
 
+    // only one result -> use it
     if (is_array($res) && !empty($res) && count($res) == 1) { 
         $first = (array) $res[0];
         $id = (int) ($first['id'] ?? 0);
         if ($id > 0) return $id;
     }
 
-    if (is_array($res) && !empty($res) && count($res) > 1) {
-        LH_Ttx_Logger::error('Multiple ttx ids for produkt!', [
+    if (!is_array($res) || empty($res)) {
+        return ttx_error('ttx_product_not_found', __('Fant ikke Tripletex-produkt for gitt SKU.', 'lh-ttx'), [
             'sku' => $sku,
         ]);
     }
 
-    return ttx_error('ttx_product_not_found', __('Fant ikke Tripletex-produkt for gitt SKU.', 'lh-ttx'), [
-        'sku'      => $sku,
+    // we have multiple products, only keep product with priceExcludingVatCurrency > 0 
+    $candidates = array_values(array_filter($res, static function ($row) {
+        $row = (array) $row;
+        $price = isset($row['priceExcludingVatCurrency']) ? (float) $row['priceExcludingVatCurrency'] : 0.0;
+        return $price > 0.0;
+    }));
+
+    // do we only have one remaning?
+    if (count($candidates) === 1) {
+        $first = (array) $candidates[0];
+        $id = (int) ($first['id'] ?? 0);
+        if ($id > 0) return $id;
+
+        return ttx_error('ttx_id_invalid', __('Ugyldig Tripletex-produkt-ID.', 'lh-ttx'), [
+            'sku' => $sku,
+            'candidate' => $first,
+        ]);
+    }
+
+    // zero or > 1 products after filter!
+    if (count($candidates) === 0) {
+        LH_Ttx_Logger::error('No non-zero priced Tripletex product found for SKU (all candidates had 0 price)', [
+            'sku' => $sku,
+            'resultsCount' => is_array($res) ? count($res) : 0,
+        ]);
+    } else {
+        LH_Ttx_Logger::error('Multiple non-zero priced Tripletex products for SKU', [
+            'sku' => $sku,
+            'candidatesCount' => count($candidates),
+        ]);
+    }
+
+    return ttx_error('ttx_product_ambiguous', __('Fant ikke Tripletex-produkt for gitt SKU.', 'lh-ttx'), [
+        'sku' => $sku,
     ]);
 }
 
