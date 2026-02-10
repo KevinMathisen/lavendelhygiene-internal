@@ -58,6 +58,10 @@ final class LH_Ttx_Settings_Page {
             case 'clear_session':
                 $this->clear_session();
                 break;
+
+            case 'reset_product_ids':
+                $this->reset_all_product_tripletex_ids();
+                break;
         }
     }
 
@@ -122,6 +126,40 @@ final class LH_Ttx_Settings_Page {
     private function clear_session(): void {
         lh_ttx_clear_cached_session();
         add_settings_error('lh-ttx', 'session_cleared', __('Session token cleared.', 'lh-ttx'), 'updated');
+        wp_safe_redirect(add_query_arg(['page' => 'lh-ttx-settings'], admin_url('admin.php')));
+        exit;
+    }
+
+    private function reset_all_product_tripletex_ids(): void {
+        global $wpdb;
+
+        // Reset product + variation ttx id meta attribute to 0
+        $sql = "
+            UPDATE {$wpdb->postmeta} pm
+            INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+            SET pm.meta_value = %s
+            WHERE pm.meta_key = %s
+              AND p.post_type IN ('product', 'product_variation')
+        ";
+
+        $affected = $wpdb->query(
+            $wpdb->prepare($sql, '0', '_tripletex_product_id')
+        );
+
+        if ($affected === false) {
+            add_settings_error('lh-ttx', 'reset_failed', __('Failed to reset Tripletex product IDs.', 'lh-ttx'), 'error');
+        } else {
+            add_settings_error(
+                'lh-ttx',
+                'reset_ok',
+                sprintf(
+                    __('Reset Tripletex product IDs for %d entries.', 'lh-ttx'),
+                    (int) $affected
+                ),
+                'updated'
+            );
+        }
+
         wp_safe_redirect(add_query_arg(['page' => 'lh-ttx-settings'], admin_url('admin.php')));
         exit;
     }
@@ -237,6 +275,11 @@ final class LH_Ttx_Settings_Page {
                     <button type="submit" class="button button-primary"><?php esc_html_e('Save changes', 'lh-ttx'); ?></button>
                     <button type="submit" class="button" name="lh_ttx_action" value="test"><?php esc_html_e('Test connection', 'lh-ttx'); ?></button>
                     <button type="submit" class="button button-secondary" name="lh_ttx_action" value="clear_session"><?php esc_html_e('Clear session token', 'lh-ttx'); ?></button>
+
+                    <button type="submit" class="button button-secondary" name="lh_ttx_action" value="reset_product_ids"
+                        onclick="return confirm('<?php echo esc_js(__('This will reset all stored Tripletex product IDs. They will be re-created/re-linked on next Tripletex interaction. Continue?', 'lh-ttx')); ?>');"
+                        style="margin-left:12px;"
+                    ><?php esc_html_e('Reset Tripletex product IDs', 'lh-ttx'); ?></button>
                 </p>
             </form>
         </div>
