@@ -535,15 +535,21 @@ function ttx_products_get_ttx_id_from_sku(string $product_sku) {
 
     $res = ttx_get('/product', [
         'productNumber' => $sku,
-        'count'         => 1,
+        'isInactive'    => 'false',
         'fields'        => 'id',
     ]);
     if (is_wp_error($res)) return $res;
 
-    if (is_array($res) && !empty($res)) {
+    if (is_array($res) && !empty($res) && count($res) == 1) { 
         $first = (array) $res[0];
         $id = (int) ($first['id'] ?? 0);
         if ($id > 0) return $id;
+    }
+
+    if (is_array($res) && !empty($res) && count($res) > 1) {
+        LH_Ttx_Logger::error('Multiple ttx ids for produkt!', [
+            'sku' => $sku,
+        ]);
     }
 
     return ttx_error('ttx_product_not_found', __('Fant ikke Tripletex-produkt for gitt SKU.', 'lh-ttx'), [
