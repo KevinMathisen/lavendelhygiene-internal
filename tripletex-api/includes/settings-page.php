@@ -62,6 +62,10 @@ final class LH_Ttx_Settings_Page {
             case 'reset_product_ids':
                 $this->reset_all_product_tripletex_ids();
                 break;
+
+            case 'sync_product_ids':
+                $this->sync_all_product_tripletex_ids();
+                break;
         }
     }
 
@@ -159,6 +163,53 @@ final class LH_Ttx_Settings_Page {
                 'updated'
             );
         }
+
+        wp_safe_redirect(add_query_arg(['page' => 'lh-ttx-settings'], admin_url('admin.php')));
+        exit;
+    }
+
+    private function sync_all_product_tripletex_ids(): void {
+        if (!function_exists('get_tripletex_product_id_from_wc_product')) {
+            add_settings_error('lh-ttx', 'ttx_missing', __('Tripletex product resolver is not available.', 'lh-ttx'), 'error');
+            wp_safe_redirect(add_query_arg(['page' => 'lh-ttx-settings'], admin_url('admin.php')));
+            exit;
+        }
+
+        $q = new WP_Query([
+            'post_type'      => ['product', 'product_variation'],
+            'post_status'    => ['publish'],
+            'fields'         => 'ids',
+            'posts_per_page' => -1,
+            'no_found_rows'  => true,
+        ]);
+        $ids = array_map('intval', (array) $q->posts);
+
+        $processed = 0;
+        $updated   = 0;
+        $errors    = 0;
+
+        foreach ($ids as $post_id) {
+            $processed++;
+
+            $product = wc_get_product($post_id);
+            if (!$product) { $errors++; continue; }
+
+            $ttx_id = get_tripletex_product_id_from_wc_product($product);
+
+            if (is_wp_error($ttx_id)) { $errors++; continue; }
+
+            if ((int) $ttx_id > 0) { $updated++;
+            } else { $errors++; }
+        }
+
+        add_settings_error('lh-ttx','sync_product_ids_done',
+            sprintf(
+                __('Tripletex product ID sync finished. Processed: %1$d, updated/resolved: %2$d, errors: %3$d.', 'lh-ttx'),
+                (int) $processed,
+                (int) $updated,
+                (int) $errors
+            ), $errors > 0 ? 'warning' : 'updated'
+        );
 
         wp_safe_redirect(add_query_arg(['page' => 'lh-ttx-settings'], admin_url('admin.php')));
         exit;
@@ -280,6 +331,10 @@ final class LH_Ttx_Settings_Page {
                         onclick="return confirm('<?php echo esc_js(__('This will reset all stored Tripletex product IDs. They will be re-created/re-linked on next Tripletex interaction. Continue?', 'lh-ttx')); ?>');"
                         style="margin-left:12px;"
                     ><?php esc_html_e('Reset Tripletex product IDs', 'lh-ttx'); ?></button>
+
+                    <button type="submit" class="button button-secondary" name="lh_ttx_action" value="sync_product_ids"
+                        onclick="return confirm('<?php echo esc_js(__('This will resolve and store Tripletex product IDs for all products/variations. Continue?', 'lh-ttx')); ?>');"
+                    ><?php esc_html_e('Sync Tripletex product IDs now', 'lh-ttx'); ?></button>
                 </p>
             </form>
         </div>
