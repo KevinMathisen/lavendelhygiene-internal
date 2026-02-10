@@ -4,12 +4,18 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 class LavendelHygiene_Notifications {
     public function __construct() {
+        add_action( 'init', [ $this, 'disable_admin_password_change_notification' ], 20 );
         add_action( 'woocommerce_created_customer', [ $this, 'email_on_registration' ], 25, 3 );
 
         // notify customer when order goes from pending -> on-hold
         add_action('woocommerce_order_status_pending_to_on-hold',
             [ $this, 'send_processing_email_for_invoice_on_hold' ], 10, 2 );
     }
+
+    public function disable_admin_password_change_notification() {
+        remove_action( 'after_password_reset', 'wp_password_change_notification' );
+    }
+
 
     public function email_on_registration( $user_id, $new_customer_data = [], $password_generated = false ) {
         $user = get_userdata( $user_id );
