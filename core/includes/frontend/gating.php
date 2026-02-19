@@ -37,11 +37,34 @@ class LavendelHygiene_Gating {
             if ( ! $product ) return false;
         }
 
+        // Treat zero-priced products as catalog-only
+        $price = $product->get_price();
+        if ( $price !== '' && (float) $price <= 0 ) {
+            return true;
+        }
+
         $sku = (string) $product->get_sku();
         if ( $sku === '' ) return false;
 
         $catalog_only_skus = array( '100', '108', '1000' );
 
+        return in_array( $sku, $catalog_only_skus, true );
+    }
+
+    private function is_catalog_only_by_sku( $product ) {
+        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+            return false;
+        }
+
+        if ( $product->is_type( 'variation' ) ) {
+            $product = wc_get_product( $product->get_parent_id() );
+            if ( ! $product ) return false;
+        }
+
+        $sku = (string) $product->get_sku();
+        if ( $sku === '' ) return false;
+
+        $catalog_only_skus = array( '100', '108', '1000' );
         return in_array( $sku, $catalog_only_skus, true );
     }
 
@@ -175,7 +198,7 @@ class LavendelHygiene_Gating {
 
         echo '<div class="woocommerce-info">' . wp_kses_post(
             sprintf(
-                __( 'Pris varierer med volum og leveringsbetingelser, <a href="%s">kontakt oss</a> for tilbud.', 'lavendelhygiene' ),
+                __( 'Nettsidepris gjelder ved standard bestilling. Ved større volum kan vi tilby avtalepris og tilpassede leveringsbetingelser, <a href="%s">kontakt oss</a> for tilbud.', 'lavendelhygiene' ),
                 esc_url( $contact_url )
             )
         ) . '</div>';
@@ -192,9 +215,20 @@ class LavendelHygiene_Gating {
 
         $contact_url = home_url( '/kontakt/' );
 
+        if ( $this->is_catalog_only_by_sku( $product ) ) {
+            echo '<div class="woocommerce-info">' . wp_kses_post(
+                sprintf(
+                    __( 'Produktet krever invidiuell tilpasning og installasjon. Pris fastsettes basert på ønsket løsning og omfang, og selges derfor ikke direkte i nettbutikken.<br><a href="%s">Kontakt oss</a> for tilbud eller mer informasjon!', 'lavendelhygiene' ),
+                    esc_url( $contact_url )
+                )
+            ) . '</div>';
+            return;
+        }
+
+        // Zero-price catalog-only message
         echo '<div class="woocommerce-info">' . wp_kses_post(
             sprintf(
-                __( 'Produktet krever tilpasning og installasjon. Pris fastsettes basert på ønsket løsning og omfang, og selges derfor ikke direkte i nettbutikken.<br><a href="%s">Kontakt oss</a> for tilbud eller mer informasjon!', 'lavendelhygiene' ),
+                __( 'Dette produktet selges ikke for tiden direkte i nettbutikken.<br><a href="%s">Kontakt oss</a> for tilbud eller mer informasjon!', 'lavendelhygiene' ),
                 esc_url( $contact_url )
             )
         ) . '</div>';
