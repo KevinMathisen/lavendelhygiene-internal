@@ -18,40 +18,60 @@ class LavendelHygiene_Gating {
         add_filter( 'woocommerce_variation_is_purchasable',       [ $this, 'filter_variation_is_purchasable' ], 10, 2 );
         add_filter( 'woocommerce_available_variation',            [ $this, 'filter_available_variation_price_html' ], 10, 3 );
         add_action( 'template_redirect',                          [ $this, 'enforce_cart_checkout_gate' ], 20 );
-        
+
         // gating: prevent catalog-only products from add to cart
-        add_filter( 'woocommerce_add_to_cart_validation',         [ $this, 'block_add_to_cart_for_catalog_only' ], 10, 3 );
+        add_filter( 'woocommerce_add_to_cart_validation',         [ $this, 'block_add_to_cart_for_catalog_only' ], 10, 4 );
         add_filter( 'woocommerce_loop_add_to_cart_link',          [ $this, 'maybe_remove_loop_add_to_cart_link' ], 10, 2 );
     }
 
     /* ---------------- Pricing & purchasing ---------------- */
 
-    private function is_catalog_only_product( $product ) {
+    /**
+     * Parent-level gating:
+     * - explicit SKU catalog-only list
+     * - zero-price only for simple/non-variable products
+     */
+    private function is_catalog_only_parent( $product ) {
         if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
             return false;
         }
 
-        // Normalize variations to parent
+        // Normalize variation to parent.
         if ( $product->is_type( 'variation' ) ) {
             $product = wc_get_product( $product->get_parent_id() );
             if ( ! $product ) return false;
         }
 
-        // Treat zero-priced products as catalog-only
-        $price = $product->get_price();
-        if ( $price !== '' && (float) $price <= 0 ) {
+        $sku = (string) $product->get_sku();
+        $catalog_only_skus = array( '100', '108', '1000', '700006590', '6827', 'MDS100EU', 'SNG-32CS-EU-A' );
+        if ( $sku !== '' && in_array( $sku, $catalog_only_skus, true ) ) {
             return true;
         }
 
-        $sku = (string) $product->get_sku();
-        if ( $sku === '' ) return false;
+        // Only simple/non-variable products are blocked by zero price at parent level.
+        if ( ! $product->is_type( 'variable' ) ) {
+            $price = $product->get_price();
+            if ( $price !== '' && (float) $price <= 0 ) {
+                return true;
+            }
+        }
 
-        $catalog_only_skus = array( '100', '108', '1000', '700006590', '6827', 'MDS100EU', 'SNG-32CS-EU-A' );
-
-        return in_array( $sku, $catalog_only_skus, true );
+        return false;
     }
 
-    private function is_catalog_only_by_sku( $product ) {
+    /**
+     * Variation-only gating for zero-priced variations.
+     */
+    private function is_blocked_variation( $variation ) {
+        if ( ! $variation || ! is_a( $variation, 'WC_Product_Variation' ) ) {
+            return false;
+        }
+
+        $price = $variation->get_price();
+        return ( $price !== '' && (float) $price <= 0 );
+    }
+
+    private function is_installation_product( $product ) {
         if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
             return false;
         }
@@ -68,20 +88,34 @@ class LavendelHygiene_Gating {
         return in_array( $sku, $catalog_only_skus, true );
     }
 
-    public function block_add_to_cart_for_catalog_only( $passed, $product_id, $quantity ) {
+    public function block_add_to_cart_for_catalog_only( $passed, $product_id, $quantity, $variation_id = 0 ) {
+        // Variation add-to-cart: block only the selected zero-priced variation.
+        if ( ! empty( $variation_id ) ) {
+            $variation = wc_get_product( $variation_id );
+            if ( $this->is_blocked_variation( $variation ) ) {
+                wc_add_notice(
+                    __( 'Denne varianten selges ikke direkte i nettbutikken. Velg en annen variant eller kontakt oss.', 'lavendelhygiene' ),
+                    'notice'
+                );
+                return false;
+            }
+        }
+
+        // Parent/simple product gating.
         $product = wc_get_product( $product_id );
-        if ( $this->is_catalog_only_product( $product ) ) {
+        if ( $this->is_catalog_only_parent( $product ) ) {
             wc_add_notice(
                 __( 'Dette produktet selges ikke direkte i nettbutikken. Kontakt oss for tilbud eller mer informasjon.', 'lavendelhygiene' ),
                 'notice'
             );
             return false;
         }
+
         return $passed;
     }
 
     public function maybe_remove_loop_add_to_cart_link( $html, $product ) {
-        return $this->is_catalog_only_product( $product ) ? '' : $html;
+        return $this->is_catalog_only_parent( $product ) ? '' : $html;
     }
 
     public function filter_price_html( $price_html, $product ) {
@@ -91,22 +125,28 @@ class LavendelHygiene_Gating {
         if ( LavendelHygiene_Core::user_is_restricted() ) {
             return '';
         }
-        if ( $this->is_catalog_only_product( $product ) ) {
+        if ( $this->is_catalog_only_parent( $product ) ) {
             return '';
         }
-        return $price_html; // approved
+        return $price_html;
     }
 
     public function filter_available_variation_price_html( $data, $product, $variation ) {
         if ( current_user_can( 'manage_woocommerce' ) || current_user_can( 'manage_options' ) ) {
             return $data;
         }
+
         if ( LavendelHygiene_Core::user_is_restricted() ) {
-            $data['price_html'] = ''; //  hide the per-variation price_html payload used on variable products
-        }
-        if ( $this->is_catalog_only_product( $product ) ) {
             $data['price_html'] = '';
+            return $data;
         }
+
+        if ( $this->is_blocked_variation( $variation ) ) {
+            $data['price_html'] = '';
+            $data['is_purchasable'] = false;
+            $data['variation_is_active'] = false;
+        }
+
         return $data;
     }
 
@@ -115,7 +155,7 @@ class LavendelHygiene_Gating {
             return false;
         }
 
-        if ( $this->is_catalog_only_product( $product ) ) {
+        if ( $this->is_catalog_only_parent( $product ) ) {
             return false;
         }
 
@@ -127,7 +167,12 @@ class LavendelHygiene_Gating {
             return false;
         }
 
-        if ( $this->is_catalog_only_product( $variation ) ) {
+        if ( $this->is_blocked_variation( $variation ) ) {
+            return false;
+        }
+
+        // Keep parent SKU-based catalog-only rule for variations.
+        if ( $this->is_catalog_only_parent( $variation ) ) {
             return false;
         }
 
@@ -211,11 +256,11 @@ class LavendelHygiene_Gating {
         $product = wc_get_product( get_queried_object_id() );
         if ( ! $product ) return;
 
-        if ( ! $this->is_catalog_only_product( $product ) ) return;
+        if ( ! $this->is_catalog_only_parent( $product ) ) return;
 
         $contact_url = home_url( '/kontakt/' );
 
-        if ( $this->is_catalog_only_by_sku( $product ) ) {
+        if ( $this->is_installation_product( $product ) ) {
             echo '<div class="woocommerce-info">' . wp_kses_post(
                 sprintf(
                     __( 'Produktet krever invidiuell tilpasning og installasjon. Pris fastsettes basert på ønsket løsning og omfang, og selges derfor ikke direkte i nettbutikken.<br><a href="%s">Kontakt oss</a> for tilbud eller mer informasjon!', 'lavendelhygiene' ),
