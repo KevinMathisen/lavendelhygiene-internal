@@ -10,8 +10,19 @@ class LavendelHygiene_TweakUserSettings {
         add_filter( 'woocommerce_shipping_fields', [ $this, 'add_shipping_phone_field' ] );
         add_filter( 'woocommerce_billing_fields', [ $this, 'maybe_hide_billing_email_on_address_edit' ] );
 
-        // Stop billing name/phone in the *user profile* from being modified by the Checkout Block.
+        add_filter( 'woocommerce_account_menu_items', [ $this, 'rename_tinvwl_menu_item' ], 100 );
+
+        // stop billing name/phone in the *user profile* from being modified by the checkout block
         add_filter( 'update_user_metadata', [ $this, 'prevent_order_overwrite_billing_fields' ], 10, 5 );
+    }
+
+    public function rename_tinvwl_menu_item( $items ) {
+        foreach ( $items as $endpoint => $label ) {
+            if ( $label === 'Wishlist' || $label === __( 'Wishlist', 'ti-woocommerce-wishlist' ) ) {
+                $items[ $endpoint ] = __( 'Lagrede produkter', 'lavendelhygiene' );
+            }
+        }
+        return $items;
     }
 
     public function prevent_order_overwrite_billing_fields( $check, $user_id, $meta_key, $meta_value, $prev_value ) {
