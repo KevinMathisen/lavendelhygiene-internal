@@ -6,6 +6,23 @@ class LavendelHygiene_ProductDocsTab {
 
     public function __construct() {
         add_filter( 'woocommerce_product_tabs', [ $this, 'add_docs_tab' ] );
+
+        add_filter( 'woocommerce_catalog_orderby', [ $this, 'add_alph_sorting_option' ], 20 );
+        add_filter( 'woocommerce_get_catalog_ordering_args', [ $this, 'apply_alph_sorting_args' ], 20, 3 );
+    }
+
+    public function add_alph_sorting_option( array $options ): array {
+        $options['title_asc'] = __( 'Sorter etter navn (A-Å)', 'lavendelhygiene' );
+        return $options;
+    }
+
+    public function apply_alph_sorting_args( array $args, string $orderby, string $order ): array {
+        if ( 'title_asc' === $orderby ) {
+            $args['orderby']  = 'title';
+            $args['order']    = 'ASC';
+            $args['meta_key'] = '';
+        }
+        return $args;
     }
 
     /**
