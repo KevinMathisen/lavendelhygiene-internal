@@ -46,7 +46,7 @@ class LavendelHygiene_Gating {
         $sku = (string) $product->get_sku();
         if ( $sku === '' ) return false;
 
-        $catalog_only_skus = array( '100', '108', '1000' );
+        $catalog_only_skus = array( '100', '108', '1000', '700006590', '6827', 'MDS100EU', 'SNG-32CS-EU-A' );
 
         return in_array( $sku, $catalog_only_skus, true );
     }
