@@ -10,6 +10,8 @@ class LavendelHygiene_Gating {
         add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_not_purchasable_pricing_notice' ], 12 );
 
         add_filter( 'render_block', [ $this, 'inject_notice_for_blocks_cart_checkout' ], 10, 2 );
+        add_filter( 'render_block', [ $this, 'inject_notice_for_blocks_signup' ], 10, 2 );
+
 
         /* gating: prices, purchasability, cart/checkout access */
         add_filter( 'woocommerce_get_price_html',                 [ $this, 'filter_price_html' ], 9, 2 );
@@ -327,6 +329,71 @@ class LavendelHygiene_Gating {
 
         $notice_html = sprintf(
             '<div class="lavh-cart-checkout-notice">
+                <div class="wc-block-components-notice-banner is-info" role="status" aria-live="polite">
+                    <div class="wc-block-components-notice-banner__content">%s</div>
+                </div>
+            </div>',
+            wp_kses_post( $message )
+        );
+
+        return $style . $notice_html . $block_content;
+    }
+
+    public function inject_notice_for_blocks_signup( $block_content, $block ) {
+        if ( empty( $block['blockName'] ) ) {
+            return $block_content;
+        }
+
+        if ( ! ( function_exists( 'is_account_page' ) && is_account_page() ) || is_user_logged_in() ) {
+            return $block_content;
+        }
+
+        $allowed_blocks = array(
+            'woocommerce/my-account',
+            'woocommerce/customer-account',
+            'woocommerce/classic-shortcode',
+            'core/shortcode',
+        );
+
+        if ( ! in_array( $block['blockName'], $allowed_blocks, true ) ) {
+            return $block_content;
+        }
+
+        static $injected = false;
+        if ( $injected ) {
+            return $block_content;
+        }
+        $injected = true;
+
+        $message = __( '<h3>Velkommen til vår nye nettbutikk!</h3>Lavendel Hygiene har lansert en ny nettbutikk for bestilling på nett. Her får du tilgang til komplett produktkatalog, ordreoversikt og automatiske e-postvarsler om ordrestatus.<br><br>For å se priser, lagre produkter og gjennomføre bestillinger må du ha en registrert bruker. Dette gjelder også for eksisterende kunder.<br><br>Du kan enkelt opprette konto via registreringsskjema nedenfor. Vennligst registrer korrekt organisasjonsnummer, samt e-postadresse og navn til innkjøpsansvarlig (e-postadressen brukes til å administere kontoen og for ordrebekreftelser). Etter registrering kan du ved behov legge til egen kontaktperson for levering under Min side.<br><br>Alle registreringer må godkjennes av oss før tilgang til priser og bestilling aktiveres. Du vil motta e-post så snart kontoen din er godkjent.', 'lavendelhygiene' );
+
+        static $printed_style = false;
+        $style = '';
+        if ( ! $printed_style ) {
+            $printed_style = true;
+            $style = '<style id="lavh-signup-notice-style">
+                .lavh-signup-notice{display:flex;justify-content:center;margin:0 0 24px;}
+                .lavh-signup-notice .wc-block-components-notice-banner{
+                    width:fit-content;
+                    max-width:1000px;
+                    font-size:18px;
+                    line-height:1.4;
+                    padding: 30px !important;
+                    border:0;
+                    background:#f3f8ff;
+                    border-radius:15px;
+                    margin-top: 0px;
+                }
+                .lavh-signup-notice .wc-block-components-notice-banner__content{
+                    text-align:left;
+                    font-weight:500;
+                    letter-spacing:.2px;
+                }
+            </style>';
+        }
+
+        $notice_html = sprintf(
+            '<div class="lavh-signup-notice">
                 <div class="wc-block-components-notice-banner is-info" role="status" aria-live="polite">
                     <div class="wc-block-components-notice-banner__content">%s</div>
                 </div>
