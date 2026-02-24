@@ -14,6 +14,8 @@ class LavendelHygiene_ProfileFields {
 
         add_filter( 'manage_users_columns', [ $this, 'users_col' ] );
         add_filter( 'manage_users_custom_column', [ $this, 'users_col_content' ], 10, 3 );
+
+        add_filter( 'manage_users_sortable_columns', [ $this, 'users_sortable_cols' ] );
     }
     public function render( $user ) {
         if ( ! current_user_can( 'list_users' ) ) return;
@@ -82,6 +84,7 @@ class LavendelHygiene_ProfileFields {
         $cols['orgnr']   = __( 'Org.nr', 'lavendelhygiene' );
         $cols['b2b_status']   = __( 'Approved?', 'lavendelhygiene' );
         $cols['tripletex_id'] = __( 'Tripletex ID', 'lavendelhygiene' );
+        $cols['created_at']   = __( 'Created', 'lavendelhygiene' );
 
         return $cols;
     }
@@ -107,6 +110,20 @@ class LavendelHygiene_ProfileFields {
             }
             return esc_html( $status );
         }
+        if ( 'created_at' === $column_name ) {
+            $user = get_userdata( $user_id );
+            if ( ! $user || empty( $user->user_registered ) ) { return '—'; }
+
+            return esc_html(wp_date(
+                get_option( 'date_format' ) . ' ' . get_option( 'time_format' ),
+                strtotime( $user->user_registered )
+            ));
+        }
         return $output;
+    }
+
+    public function users_sortable_cols( $columns ) {
+        $columns['created_at'] = 'registered';
+        return $columns;
     }
 }
