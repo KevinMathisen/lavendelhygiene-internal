@@ -69,6 +69,7 @@ class LavendelHygiene_AdminApplications {
                     <thead>
                     <tr>
                         <th><?php esc_html_e( 'User', 'lavendelhygiene' ); ?></th>
+                        <th><?php esc_html_e( 'Name', 'lavendelhygiene' ); ?></th>
                         <th><?php esc_html_e( 'Email', 'lavendelhygiene' ); ?></th>
                         <th><?php esc_html_e( 'Company', 'lavendelhygiene' ); ?></th>
                         <th><?php esc_html_e( 'Org.nr', 'lavendelhygiene' ); ?></th>
@@ -81,6 +82,10 @@ class LavendelHygiene_AdminApplications {
                         $company = get_user_meta( $u->ID, 'billing_company', true );
                         $orgnr   = get_user_meta( $u->ID, LavendelHygiene_Core::META_ORGNR, true );
                         $ttx_id  = $svc->get_ttx_id( $u->ID );
+
+                        $first_name = (string) get_user_meta( $u->ID, 'first_name', true );
+                        $last_name  = (string) get_user_meta( $u->ID, 'last_name', true );
+                        $name = trim( $first_name . ' ' . $last_name );
 
                         $approve_url = wp_nonce_url(
                             admin_url( 'admin-post.php?action=lavendelhygiene_approve&user_id=' . $u->ID ),
@@ -99,6 +104,7 @@ class LavendelHygiene_AdminApplications {
                         ?>
                         <tr data-user-id="<?php echo (int) $u->ID; ?>">
                             <td><?php echo esc_html( $u->user_login ); ?></td>
+                            <td><?php echo esc_html( $name ); ?></td>
                             <td><?php echo esc_html( $u->user_email ); ?></td>
                             <td><?php echo esc_html( $company ); ?></td>
                             <td><?php echo esc_html( $orgnr ); ?></td>
@@ -147,19 +153,19 @@ class LavendelHygiene_AdminApplications {
             $subject = __( '[Lavendel Hygiene AS] Kontoen din er godkjent', 'lavendelhygiene' );
 
             $body = sprintf(
-                '<p>%s</p>
-                <p>%s</p>
+                '<p>%s</p><br>
+                <p>%s</p><br>
                 <p>
-                    <a href="%s">%s</a><br>
                     <a href="%s">%s</a>
-                </p>
+                    <a href="%s">%s</a>
+                </p><br>
                 <p>%s</p>',
                 esc_html__( 'Hei!', 'lavendelhygiene' ),
                 esc_html__( 'Kontoen din hos Lavendel Hygiene er godkjent. Du kan nå se priser og bestille produkter direkte fra nettbutikken.', 'lavendelhygiene' ),
                 esc_url( $login_url ),
                 esc_html__( 'Gå til Min konto (innlogging)', 'lavendelhygiene' ),
                 esc_url( $site_url ),
-                esc_html( wp_parse_url( $site_url, PHP_URL_HOST ) ?: $site_url ),
+                esc_html__( 'Gå til forsiden', 'lavendelhygiene' ),
                 esc_html__( 'Hilsen oss i Lavendel Hygiene', 'lavendelhygiene' )
             );
 
