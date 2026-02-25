@@ -20,6 +20,7 @@ require_once LH_CORE_PLUGIN_DIR . '/includes/frontend/gating.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/notifications.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/frontend/tweak-user-settings.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/frontend/product-docs-tabs.php';
+require_once LH_CORE_PLUGIN_DIR . '/includes/frontend/feedback.php';
 
 
 final class LavendelHygiene_Core {
@@ -50,6 +51,7 @@ final class LavendelHygiene_Core {
         new LavendelHygiene_Notifications();
         new LavendelHygiene_TweakUserSettings();
         new LavendelHygiene_ProductDocsTab();
+        new LavendelHygiene_Feedback();
 
         // Minor label tweak
         add_filter( 'woocommerce_countries_tax_or_vat', fn($label) => 'MVA (25%)' );
