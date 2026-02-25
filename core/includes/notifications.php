@@ -5,6 +5,8 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 class LavendelHygiene_Notifications {
     public function __construct() {
         add_action( 'init', [ $this, 'disable_admin_password_change_notification' ], 20 );
+        add_filter( 'woocommerce_disable_password_change_notification', '__return_true' );
+
         add_action( 'woocommerce_created_customer', [ $this, 'email_on_registration' ], 25, 3 );
 
         // notify customer when order goes from pending -> on-hold
