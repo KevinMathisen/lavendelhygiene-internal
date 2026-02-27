@@ -45,7 +45,7 @@ class LavendelHygiene_Gating {
         }
 
         $sku = (string) $product->get_sku();
-        $catalog_only_skus = array( '100', '108', '1000', '700006590', '6827', 'MDS100EU', 'SNG-32CS-EU-A' );
+        $catalog_only_skus = array( '100', '108', '1000', '700006590', '6827', 'MDS100EU', 'SNG-32CS-EU-A', '700005212' );
         if ( $sku !== '' && in_array( $sku, $catalog_only_skus, true ) ) {
             return true;
         }
@@ -297,8 +297,17 @@ class LavendelHygiene_Gating {
             return $block_content;
         }
 
-            $message = __( 'Hvis du har fast rabatt eller avtalepris reflekteres dette her.<br>Hvis du har fått et tilbud reflekteres det derimot ikke automatisk. Legg ved din tilbudsreferanse i kassen, så vil tilbudets priser reflekteres i endelig faktura.', 'lavendelhygiene' );
-            // $message = __( 'Merk: Individuelle tilbud er ikke vist i nettbutikken, men vil bli reflektert i fakturaen. Ved tilbud, legg inn ditt tilbud nummer i kassen.', 'lavendelhygiene' );
+        $shipping_page = get_page_by_path( 'frakt-og-levering' );
+        $shipping_page_url = $shipping_page ? get_permalink( $shipping_page ) : home_url( '/frakt-og-levering/' );
+
+        $shipping_link = sprintf('<a href="%s" target="_blank" rel="noopener noreferrer">Frakt og levering</a>', esc_url( $shipping_page_url ));
+
+        $message = sprintf(
+            __( 'Hvis du har fast rabatt eller avtalepris reflekteres dette her.<br>Hvis du har fått et tilbud reflekteres det derimot ikke automatisk. Legg ved din tilbudsreferanse i kassen, så vil tilbudets priser reflekteres i endelig faktura.<br>Frakt tilkommer og kan variere etter varetype og leveringsmåte. Se %s.', 'lavendelhygiene' ),
+            $shipping_link
+        );
+        // $message = __( 'Hvis du har fast rabatt eller avtalepris reflekteres dette her.<br>Hvis du har fått et tilbud reflekteres det derimot ikke automatisk. Legg ved din tilbudsreferanse i kassen, så vil tilbudets priser reflekteres i endelig faktura.', 'lavendelhygiene' );
+        // $message = __( 'Merk: Individuelle tilbud er ikke vist i nettbutikken, men vil bli reflektert i fakturaen. Ved tilbud, legg inn ditt tilbud nummer i kassen.', 'lavendelhygiene' );
 
         static $printed = false;
         $style = '';
@@ -327,13 +336,21 @@ class LavendelHygiene_Gating {
             </style>';
         }
 
+        $allowed = array(
+            'a'  => array(
+                'href'   => true,
+                'target' => true,
+                'rel'    => true,
+            ),
+            'br' => array(),
+        );
         $notice_html = sprintf(
             '<div class="lavh-cart-checkout-notice">
                 <div class="wc-block-components-notice-banner is-info" role="status" aria-live="polite">
                     <div class="wc-block-components-notice-banner__content">%s</div>
                 </div>
             </div>',
-            wp_kses_post( $message )
+            wp_kses( $message, $allowed )
         );
 
         return $style . $notice_html . $block_content;
