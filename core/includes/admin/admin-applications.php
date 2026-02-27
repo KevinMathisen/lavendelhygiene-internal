@@ -156,7 +156,7 @@ class LavendelHygiene_AdminApplications {
                 '<p>%s</p><br>
                 <p>%s</p><br>
                 <p>
-                    <a href="%s">%s</a>
+                    <a href="%s">%s</a><br>
                     <a href="%s">%s</a>
                 </p><br>
                 <p>%s</p>',
