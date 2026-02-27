@@ -69,11 +69,21 @@ final class LH_Ttx_Customers_Service {
         if (is_wp_error($remote)) return $remote;
 
         // update delivery adress if modified
-        $delivery_updated = $this->sync_delivery_address_object($user_id, (array) $remote);
-        if (is_wp_error($delivery_updated)) return $delivery_updated;
+        $delivery_result = $this->sync_delivery_address_object($user_id, (array) $remote);
+        if (is_wp_error($delivery_result)) return $delivery_result;
 
         // build minimal update payload with only changed fields (and not delivery address)
         $update = $this->build_customer_update_payload_from_map($user_id, (array) $remote);
+
+        // If postalcode changed, it indicates they have new delivery address, so we create a new delivery address 
+        //      by sending deliveryAddress on customer update
+        $delivery_updated = false;
+        if (is_array($delivery_result) && ($delivery_result['action'] ?? '') === 'create_new') {
+            $delivery_updated = true;
+            $update['deliveryAddress'] = $delivery_result['payload'];
+        } elseif ($delivery_result === true) {
+            $delivery_updated = true;
+        }
 
         if (empty($update) && !$delivery_updated) {
             LH_Ttx_Logger::info('Tripletex: no customer changes to sync', [
@@ -165,16 +175,17 @@ final class LH_Ttx_Customers_Service {
             'organizationNumber' => $for_create ? ($orgnr ?: null) : null,
             'email'              => $email ?: null,
             'invoiceEmail'       => $for_create ? ($email ?: null) : null,
-            'phoneNumber'        => $phone ?: null,
-            'invoiceSendMethod' =>  $for_create ? ($use_ehf === 'yes' ? 'EHF' : 'EMAIL') : null,
-            'isPrivateIndividual' => $for_create ? (FALSE) : null,
-            'postalAddress' => [
+            'invoiceSendMethod'  => $for_create ? ($use_ehf === 'yes' ? 'EHF' : 'EMAIL') : null,
+            'isPrivateIndividual'=> $for_create ? (false) : null,
+            'phoneNumber'        => $for_create ? ($phone ?: null) : null,
+            'phoneNumberMobile'  => !$for_create ? ($phone ?: null) : null,
+            'postalAddress'      => $for_create ? [
                 'addressLine1' => $inv_addr_1 ?: null,
                 'addressLine2' => $inv_addr_2 ?: null,
                 'postalCode'   => $inv_post ?: null,
                 'city'         => $inv_city ?: null,
                 'country'      => [ 'isoAlpha2Code' => $inv_country ],
-            ],
+            ] : null,
             'deliveryAddress' => [
                 'addressLine1' => $ttx_ship_line1,
                 'addressLine2' => $ttx_ship_line2,
@@ -204,38 +215,36 @@ final class LH_Ttx_Customers_Service {
         $local = $this->map_user_to_tripletex_payload($user_id, ['for_create' => false]);
         $payload = [];
 
-        foreach (['email', 'phoneNumber'] as $k) {
+        foreach (['email', 'phoneNumberMobile'] as $k) {
             if (isset($local[$k])) {
                 $remoteVal = (string) ($remote[$k] ?? '');
                 $localVal  = (string) $local[$k];
-                $equal = $k === 'phoneNumber'
+                $equal = ($k === 'phoneNumberMobile')
                     ? $this->equals_strip_space($localVal, $remoteVal)
                     : $this->equals_ci_space($localVal, $remoteVal);
                 if (!$equal) $payload[$k] = $localVal;
             }
         }
 
-        // Postal address: if any field differs, send the full address
-        $addrKey = 'postalAddress';
-        if (isset($local[$addrKey])) {
-            $remoteAddr = (array) ($remote[$addrKey] ?? []);
-            $localAddr  = (array) $local[$addrKey];
+        // Postal address: if any field differs, send the full address (DIABLED FOR NOW)
+        // $addrKey = 'postalAddress';
+        // if (isset($local[$addrKey])) {
+        //     $remoteAddr = (array) ($remote[$addrKey] ?? []);
+        //     $localAddr  = (array) $local[$addrKey];
 
-            $different = false;
-            foreach (['addressLine1','addressLine2','postalCode','city'] as $field) {
-                if (!array_key_exists($field, $localAddr)) continue;
-                $l = (string) $localAddr[$field];
-                $r = (string) ($remoteAddr[$field] ?? '');
-                $equal = $field === 'postalCode'
-                    ? $this->equals_strip_space($l, $r)
-                    : $this->equals_ci_space($l, $r);
-                if ($l !== '' && !$equal) { $different = true; break; }
-            }
+        //     $different = false;
+        //     foreach (['addressLine1','addressLine2','postalCode','city'] as $field) {
+        //         if (!array_key_exists($field, $localAddr)) continue;
+        //         $l = (string) $localAddr[$field];
+        //         $r = (string) ($remoteAddr[$field] ?? '');
+        //         $equal = $field === 'postalCode'
+        //             ? $this->equals_strip_space($l, $r)
+        //             : $this->equals_ci_space($l, $r);
+        //         if ($l !== '' && !$equal) { $different = true; break; }
+        //     }
 
-            if ($different) {
-                $payload[$addrKey] = $localAddr;
-            }
-        }
+        //     if ($different) { $payload[$addrKey] = $localAddr; }
+        // }
 
         return $payload;
     }
@@ -255,11 +264,14 @@ final class LH_Ttx_Customers_Service {
     }
 
     /**
-     * Update Tripletex deliveryAddress object to prevent duplicates.
+     * Update Tripletex deliveryAddress to prevent duplicates
      *
-     * @return bool|\WP_Error True if updated, false if no changes / no deliveryAddress id.
+     * @return bool|array|\WP_Error
+     *   - true  => updated existing deliveryAddress
+     *   - false => no changes
+     *   - array => ['action' => 'create_new', 'payload' => <deliveryAddress>]
      */
-    private function sync_delivery_address_object(int $user_id, array $remote): bool|\WP_Error {
+    private function sync_delivery_address_object(int $user_id, array $remote): bool|array|\WP_Error {
         $localDel  = $this->map_user_to_tripletex_payload($user_id, ['for_create' => false])['deliveryAddress'] ?? null;
         $remoteDel = (array) ($remote['deliveryAddress'] ?? []);
         $delId     = (int) ($remoteDel['id'] ?? 0);
@@ -267,6 +279,44 @@ final class LH_Ttx_Customers_Service {
         if (!is_array($localDel) || $delId <= 0) return false;
 
         $desired = (array) $localDel;
+
+        // If postal code changed, create new address, do not overwrite existing deliveryAddress
+        $localPost  = (string) ($desired['postalCode'] ?? '');
+        $remotePost = (string) ($remoteDel['postalCode'] ?? '');
+        if ($localPost !== '' && !$this->equals_strip_space($localPost, $remotePost)) {
+            // send complete deliveryAddress
+            $full = [
+                'addressLine1' => (string) ($desired['addressLine1'] ?? ''),
+                'addressLine2' => (string) ($desired['addressLine2'] ?? ''),
+                'postalCode'   => (string) ($desired['postalCode'] ?? ''),
+                'city'         => (string) ($desired['city'] ?? ''),
+                'country'      => $desired['country'] ?? null,
+            ];
+            // remove empty values
+            $full = array_filter($full, static fn($v) => $v !== null && $v !== '');
+            if (isset($full['country']) && is_array($full['country'])) {
+                $full['country'] = array_filter($full['country'], static fn($v) => $v !== null && $v !== '');
+                if (empty($full['country'])) unset($full['country']);
+            }
+
+            // if we dont have enough data -> skip
+            if (empty($full['addressLine1']) || empty($full['postalCode']) || empty($full['city'])) {
+                return false;
+            }
+
+            LH_Ttx_Logger::info('Tripletex: postalCode changed; will create new deliveryAddress via customer update', [
+                'user_id' => $user_id,
+                'deliveryAddress_id' => $delId,
+                'from_postalCode' => $remotePost,
+                'to_postalCode'   => $localPost,
+            ]);
+
+            return [
+                'action'  => 'create_new',
+                'payload' => $full,
+            ];
+        }
+
         $diff    = [];
 
         // field => comparator method
