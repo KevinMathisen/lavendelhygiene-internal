@@ -433,6 +433,10 @@ final class LH_Ttx_Orders_Service {
 
         $payload['invoiceComment'] = $this->compose_invoice_comment($order);
 
+        // prepare discount service for user so we can check if they have discounts
+        $user_id = (int) $order->get_user_id();
+        $discSvc = new LH_Ttx_Discounts_Service();
+
         $lines = [];
         foreach ($order->get_items() as $item) {
             $product   = $item->get_product();
@@ -444,6 +448,17 @@ final class LH_Ttx_Orders_Service {
 
             if (!is_wp_error($ttx_product_id) && $ttx_product_id > 0) {
                 $line['product'] = [ 'id' => (int) $ttx_product_id ];
+
+                // apply discount if user has any for this product
+                if ($user_id > 0 && $product) {
+                    $d = $discSvc->get_discount_for_product($product, $user_id);
+                    if (!is_wp_error($d) && is_array($d)) {
+                        $pct = (float) ($d['pct'] ?? 0);
+                        if ($pct > 0) {
+                            $line['discount'] = $pct;
+                        }
+                    }
+                }
             } else {
                 // Fallback: send description only
                 $line['description'] = $item->get_name();
