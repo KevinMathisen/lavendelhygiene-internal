@@ -16,6 +16,9 @@ class LavendelHygiene_Gating {
         /* gating: prices, purchasability, cart/checkout access */
         add_filter( 'woocommerce_get_price_html',                 [ $this, 'filter_price_html' ], 9, 2 );
         add_filter( 'woocommerce_variable_price_html',            [ $this, 'filter_price_html' ], 9, 2 );
+        add_filter( 'woocommerce_structured_data_product_offer', [ $this, 'filter_structured_data_offer' ], 10, 2 );
+        add_filter( 'woocommerce_structured_data_product',       [ $this, 'filter_structured_data_product' ], 10, 2 );
+
         add_filter( 'woocommerce_is_purchasable',                 [ $this, 'filter_is_purchasable' ], 10, 2 );
         add_filter( 'woocommerce_variation_is_purchasable',       [ $this, 'filter_variation_is_purchasable' ], 10, 2 );
         add_filter( 'woocommerce_available_variation',            [ $this, 'filter_available_variation_price_html' ], 10, 3 );
@@ -24,6 +27,10 @@ class LavendelHygiene_Gating {
         // gating: prevent catalog-only products from add to cart
         add_filter( 'woocommerce_add_to_cart_validation',         [ $this, 'block_add_to_cart_for_catalog_only' ], 10, 4 );
         add_filter( 'woocommerce_loop_add_to_cart_link',          [ $this, 'maybe_remove_loop_add_to_cart_link' ], 10, 2 );
+
+        // hide prices in API 
+        add_filter( 'rest_request_after_callbacks',                 [ $this, 'scrub_store_api_prices' ], 10, 3 );
+        add_filter( 'woocommerce_hydration_request_after_callbacks',[ $this, 'scrub_store_api_prices' ], 10, 3 );
     }
 
     /* ---------------- Pricing & purchasing ---------------- */
@@ -140,6 +147,12 @@ class LavendelHygiene_Gating {
 
         if ( LavendelHygiene_Core::user_is_restricted() ) {
             $data['price_html'] = '';
+            foreach ( array( 'display_price', 'display_regular_price' ) as $k ) {
+                if ( array_key_exists( $k, $data ) ) {
+                    $data[ $k ] = null;
+                }
+            }
+            $data['is_purchasable'] = false;
             return $data;
         }
 
@@ -150,6 +163,21 @@ class LavendelHygiene_Gating {
         }
 
         return $data;
+    }
+
+    public function filter_structured_data_offer( $offer, $product ) {
+        // if visitor can't see prices, structured data must not include it
+        if ( LavendelHygiene_Core::user_is_restricted() || $this->is_catalog_only_parent( $product ) ) {
+            return array();
+        }
+        return $offer;
+    }
+
+    public function filter_structured_data_product( $markup, $product ) {
+        if ( LavendelHygiene_Core::user_is_restricted() || $this->is_catalog_only_parent( $product ) ) {
+            unset( $markup['offers'] );
+        }
+        return $markup;
     }
 
     public function filter_is_purchasable( $purchasable, $product ) {
@@ -419,5 +447,52 @@ class LavendelHygiene_Gating {
         );
 
         return $style . $notice_html . $block_content;
+    }
+
+    public function scrub_store_api_prices( $response, $server, $request ) {
+        if ( ! LavendelHygiene_Core::user_is_restricted() ) {
+            return $response;
+        }
+
+        $route = $request->get_route(); // e.g. /wc/store/v1/products
+        if ( strpos( $route, '/wc/store/' ) !== 0 ) {
+            return $response;
+        }
+
+        $data = ( $response instanceof WP_REST_Response ) ? $response->get_data() : $response;
+        $data = $this->scrub_price_fields_recursive( $data );
+
+        if ( $response instanceof WP_REST_Response ) {
+            $response->set_data( $data );
+            return $response;
+        }
+
+        return $data;
+    }
+
+    private function scrub_price_fields_recursive( $data ) {
+        if ( is_array( $data ) ) {
+            // Store API uses a nested "prices" object.
+            if ( isset( $data['prices'] ) && is_array( $data['prices'] ) ) {
+                foreach ( array( 'price', 'regular_price', 'sale_price', 'price_range' ) as $k ) {
+                    if ( array_key_exists( $k, $data['prices'] ) ) {
+                        $data['prices'][ $k ] = null;
+                    }
+                }
+            }
+
+            // Common price keys found in various Woo responses.
+            foreach ( array( 'price_html', 'price', 'regular_price', 'sale_price', 'display_price', 'display_regular_price' ) as $k ) {
+                if ( array_key_exists( $k, $data ) ) {
+                    $data[ $k ] = null;
+                }
+            }
+
+            foreach ( $data as $k => $v ) {
+                $data[ $k ] = $this->scrub_price_fields_recursive( $v );
+            }
+        }
+
+        return $data;
     }
 }
