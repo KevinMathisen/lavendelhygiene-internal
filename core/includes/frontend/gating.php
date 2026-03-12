@@ -271,12 +271,11 @@ class LavendelHygiene_Gating {
 
         $contact_url = home_url( '/kontakt/' );
 
-        echo '<div class="woocommerce-info">' . wp_kses_post(
-            sprintf(
-                __( 'Nettsidepris gjelder ved standard bestilling. Ved større volum kan vi tilby avtalepris og tilpassede leveringsbetingelser, <a href="%s">kontakt oss</a> for tilbud.', 'lavendelhygiene' ),
-                esc_url( $contact_url )
-            )
-        ) . '</div>';
+        $message = LavendelHygiene_Messages::render( 'volume_pricing_notice', [
+            'contact_url' => esc_url( $contact_url ),
+        ] );
+
+        echo '<div class="woocommerce-info">' . wp_kses_post( $message ) . '</div>';
     }
 
     public function maybe_not_purchasable_pricing_notice() {
@@ -292,20 +291,18 @@ class LavendelHygiene_Gating {
 
         if ( $this->is_installation_product( $product ) ) {
             echo '<div class="woocommerce-info">' . wp_kses_post(
-                sprintf(
-                    __( 'Produktet krever invidiuell tilpasning og installasjon. Pris fastsettes basert på ønsket løsning og omfang, og selges derfor ikke direkte i nettbutikken.<br><a href="%s">Kontakt oss</a> for tilbud eller mer informasjon!', 'lavendelhygiene' ),
-                    esc_url( $contact_url )
-                )
+                LavendelHygiene_Messages::render( 'installation_product_notice', [
+                    'contact_url' => esc_url( $contact_url ),
+                ] )
             ) . '</div>';
             return;
         }
 
         // Zero-price catalog-only message
         echo '<div class="woocommerce-info">' . wp_kses_post(
-            sprintf(
-                __( 'Dette produktet selges ikke for tiden direkte i nettbutikken.<br><a href="%s">Kontakt oss</a> for tilbud eller mer informasjon!', 'lavendelhygiene' ),
-                esc_url( $contact_url )
-            )
+            LavendelHygiene_Messages::render( 'catalog_only_notice', [
+                'contact_url' => esc_url( $contact_url ),
+            ] )
         ) . '</div>';
 
         // For kjøp av Hygienematter vil pris for montering komme i tillegg, <a href="%s">kontakt oss</a> for spørsmål.
@@ -328,14 +325,12 @@ class LavendelHygiene_Gating {
         $shipping_page = get_page_by_path( 'frakt-og-levering' );
         $shipping_page_url = $shipping_page ? get_permalink( $shipping_page ) : home_url( '/frakt-og-levering/' );
 
-        $shipping_link = sprintf('<a href="%s" target="_blank" rel="noopener noreferrer">Frakt og levering</a>', esc_url( $shipping_page_url ));
-
-        $message = sprintf(
-            __( 'Hvis du har fast rabatt eller avtalepris reflekteres dette her.<br>Hvis du har fått et tilbud reflekteres det derimot ikke automatisk. Legg ved din tilbudsreferanse i kassen, så vil tilbudets priser reflekteres i endelig faktura.<br>Frakt tilkommer og kan variere etter varetype og leveringsmåte. Se %s.', 'lavendelhygiene' ),
-            $shipping_link
-        );
         // $message = __( 'Hvis du har fast rabatt eller avtalepris reflekteres dette her.<br>Hvis du har fått et tilbud reflekteres det derimot ikke automatisk. Legg ved din tilbudsreferanse i kassen, så vil tilbudets priser reflekteres i endelig faktura.', 'lavendelhygiene' );
         // $message = __( 'Merk: Individuelle tilbud er ikke vist i nettbutikken, men vil bli reflektert i fakturaen. Ved tilbud, legg inn ditt tilbud nummer i kassen.', 'lavendelhygiene' );
+
+        $message = LavendelHygiene_Messages::render( 'cart_checkout_notice', [
+            'shipping_url' => esc_url( $shipping_page_url ),
+        ] );
 
         static $printed = false;
         $style = '';
@@ -410,7 +405,10 @@ class LavendelHygiene_Gating {
         }
         $injected = true;
 
-        $message = __( '<h3>Velkommen til vår nye nettbutikk!</h3>Lavendel Hygiene har lansert en ny nettbutikk for bestilling på nett. Her kan du blant annet handle direkte, få ordrestatus og se ordrehistorikk.<br><br>For å se priser, lagre produkter og gjennomføre bestillinger må du ha en registrert bruker. Dette gjelder også for eksisterende kunder.<br><br>Du kan enkelt opprette konto via registreringsskjema nedenfor. Vennligst registrer korrekt organisasjonsnummer, samt e-postadresse og navn til innkjøpsansvarlig (e-postadressen brukes til å administere kontoen og for ordrebekreftelser). Etter registrering kan du ved behov legge til egen kontaktperson for levering under Min side.<br><br>Alle registreringer må godkjennes av oss før tilgang til priser og bestilling aktiveres. Du vil motta e-post så snart kontoen din er godkjent.', 'lavendelhygiene' );
+        $message = LavendelHygiene_Messages::render( 'signup_notice', [
+            'login_url' => esc_url( wc_get_page_permalink( 'myaccount' ) ),
+            'contact_url' => esc_url( home_url( '/kontakt/' ) ),
+        ] );
 
         static $printed_style = false;
         $style = '';

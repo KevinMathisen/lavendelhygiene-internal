@@ -12,8 +12,10 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 define('LH_CORE_PLUGIN_DIR',       plugin_dir_path(__FILE__));
 
 require_once LH_CORE_PLUGIN_DIR . '/includes/ttx-linking-service.php';
+require_once LH_CORE_PLUGIN_DIR . '/includes/messages.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/frontend/registration.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/admin/admin-applications.php';
+require_once LH_CORE_PLUGIN_DIR . '/includes/admin/admin-messages.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/admin/product-editor.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/admin/profile-fields.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/frontend/gating.php';
@@ -45,6 +47,7 @@ final class LavendelHygiene_Core {
 
         new LavendelHygiene_Registration();
         new LavendelHygiene_AdminApplications();
+        new LavendelHygiene_AdminMessages();
         new LavendelHygiene_ProductMetaEditor();
         new LavendelHygiene_ProfileFields();
         new LavendelHygiene_Gating();
