@@ -2,54 +2,53 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 class LavendelHygiene_Gating {
+    const META_TEMP_UNAVAILABLE         = '_lavh_temp_unavailable';
+    const META_TEMP_UNAVAILABLE_MESSAGE = '_lavh_temp_unavailable_message';
+
     public function __construct() {
         /* UX notices */
         add_action( 'woocommerce_account_content',                [ $this, 'maybe_show_pending_notice' ] );
         add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_product_page_notice' ], 12 );
         add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_volume_pricing_notice' ], 12 );
-        add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_not_purchasable_pricing_notice' ], 12 );
+        add_action( 'woocommerce_single_product_summary',         [ $this, 'maybe_non_purchasable_product_notice' ], 12 );
 
         add_filter( 'render_block', [ $this, 'inject_notice_for_blocks_cart_checkout' ], 10, 2 );
         add_filter( 'render_block', [ $this, 'inject_notice_for_blocks_signup' ], 10, 2 );
 
-
         /* gating: prices, purchasability, cart/checkout access */
-        add_filter( 'woocommerce_get_price_html',                 [ $this, 'filter_price_html' ], 9, 2 );
-        add_filter( 'woocommerce_variable_price_html',            [ $this, 'filter_price_html' ], 9, 2 );
-        add_filter( 'woocommerce_structured_data_product_offer', [ $this, 'filter_structured_data_offer' ], 10, 2 );
-        add_filter( 'woocommerce_structured_data_product',       [ $this, 'filter_structured_data_product' ], 10, 2 );
+        add_filter( 'woocommerce_get_price_html',                  [ $this, 'filter_price_html' ], 9, 2 );
+        add_filter( 'woocommerce_variable_price_html',             [ $this, 'filter_price_html' ], 9, 2 );
+        add_filter( 'woocommerce_structured_data_product_offer',   [ $this, 'filter_structured_data_offer' ], 10, 2 );
+        add_filter( 'woocommerce_structured_data_product',         [ $this, 'filter_structured_data_product' ], 10, 2 );
 
-        add_filter( 'woocommerce_is_purchasable',                 [ $this, 'filter_is_purchasable' ], 10, 2 );
-        add_filter( 'woocommerce_variation_is_purchasable',       [ $this, 'filter_variation_is_purchasable' ], 10, 2 );
-        add_filter( 'woocommerce_available_variation',            [ $this, 'filter_available_variation_price_html' ], 10, 3 );
-        add_action( 'template_redirect',                          [ $this, 'enforce_cart_checkout_gate' ], 20 );
+        add_filter( 'woocommerce_is_purchasable',                  [ $this, 'filter_is_purchasable' ], 10, 2 );
+        add_filter( 'woocommerce_variation_is_purchasable',        [ $this, 'filter_variation_is_purchasable' ], 10, 2 );
+        add_filter( 'woocommerce_available_variation',             [ $this, 'filter_available_variation_price_html' ], 10, 3 );
+        add_action( 'template_redirect',                           [ $this, 'enforce_cart_checkout_gate' ], 20 );
 
-        // gating: prevent catalog-only products from add to cart
-        add_filter( 'woocommerce_add_to_cart_validation',         [ $this, 'block_add_to_cart_for_catalog_only' ], 10, 4 );
-        add_filter( 'woocommerce_loop_add_to_cart_link',          [ $this, 'maybe_remove_loop_add_to_cart_link' ], 10, 2 );
+        add_filter( 'woocommerce_add_to_cart_validation',          [ $this, 'block_add_to_cart_for_blocked_products' ], 10, 4 );
+        add_filter( 'woocommerce_loop_add_to_cart_link',           [ $this, 'maybe_remove_loop_add_to_cart_link' ], 10, 2 );
 
-        // hide prices in API 
-        add_filter( 'rest_request_after_callbacks',                 [ $this, 'scrub_store_api_prices' ], 10, 3 );
-        add_filter( 'woocommerce_hydration_request_after_callbacks',[ $this, 'scrub_store_api_prices' ], 10, 3 );
+        add_filter( 'rest_request_after_callbacks',                [ $this, 'scrub_store_api_prices' ], 10, 3 );
+        add_filter( 'woocommerce_hydration_request_after_callbacks', [ $this, 'scrub_store_api_prices' ], 10, 3 );
     }
 
-    /* ---------------- Pricing & purchasing ---------------- */
+    /* ---------------- Product classification ---------------- */
 
-    /**
-     * Parent-level gating:
-     * - explicit SKU catalog-only list
-     * - zero-price only for simple/non-variable products
-     */
-    private function is_catalog_only_parent( $product ) {
-        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
-            return false;
-        }
+    private function normalize_to_parent_product( $product ) {
+        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) return null;
 
-        // Normalize variation to parent.
         if ( $product->is_type( 'variation' ) ) {
-            $product = wc_get_product( $product->get_parent_id() );
-            if ( ! $product ) return false;
+            $parent = wc_get_product( $product->get_parent_id() );
+            return ( $parent && is_a( $parent, 'WC_Product' ) ) ? $parent : null;
         }
+
+        return $product;
+    }
+
+    private function is_catalog_only_parent( $product ) {
+        $product = $this->normalize_to_parent_product( $product );
+        if ( ! $product ) return false;
 
         $sku = (string) $product->get_sku();
         $catalog_only_skus = array( '100', '108', '1000', '700006590', '6827', 'MDS100EU', 'SNG-32CS-EU-A', '700005212' );
@@ -68,40 +67,131 @@ class LavendelHygiene_Gating {
         return false;
     }
 
-    /**
-     * Variation-only gating for zero-priced variations.
-     */
     private function is_blocked_variation( $variation ) {
         if ( ! $variation || ! is_a( $variation, 'WC_Product_Variation' ) ) {
             return false;
         }
 
         $price = $variation->get_price();
-        return ( $price !== '' && (float) $price <= 0 );
+        return $price !== '' && (float) $price <= 0;
     }
 
     private function is_installation_product( $product ) {
+        $product = $this->normalize_to_parent_product( $product );
+        if ( ! $product ) return false;
+
+        $sku = (string) $product->get_sku();
+        $installation_skus = array( '100', '108', '1000' );
+
+        return $sku !== '' && in_array( $sku, $installation_skus, true );
+    }
+
+    private function is_temporarily_unavailable( $product ) {
+        $product = $this->normalize_to_parent_product( $product );
+        if ( ! $product ) return false;
+
+        return get_post_meta( $product->get_id(), self::META_TEMP_UNAVAILABLE, true ) === 'yes';
+    }
+
+    /* ---------------- Rules (hide price? block purchase?) ---------------- */
+
+    private function should_hide_price( $product ) {
+        if ( LavendelHygiene_Core::user_is_restricted() ) {
+            return true;
+        }
+
         if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
             return false;
         }
 
-        if ( $product->is_type( 'variation' ) ) {
-            $product = wc_get_product( $product->get_parent_id() );
-            if ( ! $product ) return false;
+        if ( $this->is_catalog_only_parent( $product ) ) {
+            return true;
         }
 
-        $sku = (string) $product->get_sku();
-        if ( $sku === '' ) return false;
+        if ( $product->is_type( 'variation' ) && $this->is_blocked_variation( $product ) ) {
+            return true;
+        }
 
-        $catalog_only_skus = array( '100', '108', '1000' );
-        return in_array( $sku, $catalog_only_skus, true );
+        return false;
     }
 
-    public function block_add_to_cart_for_catalog_only( $passed, $product_id, $quantity, $variation_id = 0 ) {
-        // Variation add-to-cart: block only the selected zero-priced variation.
+    private function is_purchase_blocked( $product ) {
+        if ( LavendelHygiene_Core::user_is_restricted() ) {
+            return true;
+        }
+
+        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+            return false;
+        }
+
+        if ( $product->is_type( 'variation' ) && $this->is_blocked_variation( $product ) ) {
+            return true;
+        }
+
+        if ( $this->is_catalog_only_parent( $product ) ) {
+            return true;
+        }
+
+        if ( $this->is_temporarily_unavailable( $product ) ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /* ---------------- Message helpers ---------------- */
+
+    private function get_contact_url(): string {
+        return (string) home_url( '/kontakt/' );
+    }
+
+    private function get_temporary_unavailable_message( $product ): string {
+        $product = $this->normalize_to_parent_product( $product );
+        if ( ! $product ) {
+            return '';
+        }
+
+        $custom = (string) get_post_meta( $product->get_id(), self::META_TEMP_UNAVAILABLE_MESSAGE, true );
+        if ( $custom !== '' ) {
+            return $custom;
+        }
+
+        return LavendelHygiene_Messages::render( 'temporary_unavailable_notice', [
+            'contact_url' => esc_url( $this->get_contact_url() ),
+        ] );
+    }
+
+    private function get_non_purchasable_product_notice_html( $product ): string {
+        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+            return '';
+        }
+
+        if ( $this->is_temporarily_unavailable( $product ) ) {
+            return $this->get_temporary_unavailable_message( $product );
+        }
+
+        if ( $this->is_catalog_only_parent( $product ) ) {
+            if ( $this->is_installation_product( $product ) ) {
+                return LavendelHygiene_Messages::render( 'installation_product_notice', [
+                    'contact_url' => esc_url( $this->get_contact_url() ),
+                ] );
+            }
+
+            return LavendelHygiene_Messages::render( 'catalog_only_notice', [
+                'contact_url' => esc_url( $this->get_contact_url() ),
+            ] );
+        }
+
+        return '';
+    }
+
+    /* ---------------- Pricing & purchasing ---------------- */
+
+    public function block_add_to_cart_for_blocked_products( $passed, $product_id, $quantity, $variation_id = 0 ) {
         if ( ! empty( $variation_id ) ) {
             $variation = wc_get_product( $variation_id );
-            if ( $this->is_blocked_variation( $variation ) ) {
+
+            if ( $variation && $this->is_blocked_variation( $variation ) ) {
                 wc_add_notice(
                     __( 'Denne varianten selges ikke direkte i nettbutikken. Velg en annen variant eller kontakt oss.', 'lavendelhygiene' ),
                     'notice'
@@ -110,38 +200,58 @@ class LavendelHygiene_Gating {
             }
         }
 
-        // Parent/simple product gating.
-        $product = wc_get_product( $product_id );
-        if ( $this->is_catalog_only_parent( $product ) ) {
-            wc_add_notice(
-                __( 'Dette produktet selges ikke direkte i nettbutikken. Kontakt oss for tilbud eller mer informasjon.', 'lavendelhygiene' ),
-                'notice'
-            );
+        $target_id = $variation_id ? (int) $variation_id : (int) $product_id;
+        $product = wc_get_product( $target_id );
+
+        if ( ! $product ) {
+            return $passed;
+        }
+
+        if ( ! $this->is_purchase_blocked( $product ) ) {
+            return $passed;
+        }
+
+        if ( LavendelHygiene_Core::user_is_restricted() ) {
+            wc_add_notice( __( 'Du må være godkjent kunde for å handle i nettbutikken.', 'lavendelhygiene' ), 'notice' );
             return false;
         }
 
-        return $passed;
+        $notice = $this->get_non_purchasable_product_notice_html( $product );
+        if ( $notice !== '' ) {
+            wc_add_notice( wp_strip_all_tags( $notice ), 'notice' );
+        } else {
+            wc_add_notice( __( 'Dette produktet kan ikke kjøpes i nettbutikken akkurat nå.', 'lavendelhygiene' ), 'notice' );
+        }
+
+        return false;
     }
 
     public function maybe_remove_loop_add_to_cart_link( $html, $product ) {
-        return $this->is_catalog_only_parent( $product ) ? '' : $html;
+        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+            return $html;
+        }
+
+        if ( $this->is_purchase_blocked( $product ) ) {
+            return '';
+        }
+
+        return $html;
     }
 
     public function filter_price_html( $price_html, $product ) {
-        if ( current_user_can( 'manage_woocommerce' ) || current_user_can( 'manage_options' ) ) {
+        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
             return $price_html;
         }
-        if ( LavendelHygiene_Core::user_is_restricted() ) {
-            return '';
+
+        if ( ! $this->should_hide_price( $product ) ) {
+            return $price_html;
         }
-        if ( $this->is_catalog_only_parent( $product ) ) {
-            return '';
-        }
-        return $price_html;
+
+        return '';
     }
 
     public function filter_available_variation_price_html( $data, $product, $variation ) {
-        if ( current_user_can( 'manage_woocommerce' ) || current_user_can( 'manage_options' ) ) {
+        if ( ! is_array( $data ) || ! $variation || ! is_a( $variation, 'WC_Product_Variation' ) ) {
             return $data;
         }
 
@@ -158,34 +268,47 @@ class LavendelHygiene_Gating {
 
         if ( $this->is_blocked_variation( $variation ) ) {
             $data['price_html'] = '';
+            foreach ( array( 'display_price', 'display_regular_price' ) as $k ) {
+                if ( array_key_exists( $k, $data ) ) {
+                    $data[ $k ] = null;
+                }
+            }
             $data['is_purchasable'] = false;
             $data['variation_is_active'] = false;
+            return $data;
         }
 
         return $data;
     }
 
     public function filter_structured_data_offer( $offer, $product ) {
-        // if visitor can't see prices, structured data must not include it
-        if ( LavendelHygiene_Core::user_is_restricted() || $this->is_catalog_only_parent( $product ) ) {
-            return array();
+        if ( ! is_array( $offer ) || ! $product || ! is_a( $product, 'WC_Product' ) ) {
+            return $offer;
+        }
+
+        if ( $this->should_hide_price( $product ) ) {
+            unset( $offer['price'], $offer['priceSpecification'] );
         }
         return $offer;
     }
 
     public function filter_structured_data_product( $markup, $product ) {
-        if ( LavendelHygiene_Core::user_is_restricted() || $this->is_catalog_only_parent( $product ) ) {
+        if ( ! is_array( $markup ) || ! $product || ! is_a( $product, 'WC_Product' ) ) {
+            return $markup;
+        }
+
+        if ( $this->should_hide_price( $product ) && isset( $markup['offers'] ) ) {
             unset( $markup['offers'] );
         }
         return $markup;
     }
 
     public function filter_is_purchasable( $purchasable, $product ) {
-        if ( LavendelHygiene_Core::user_is_restricted() ) {
-            return false;
+        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+            return $purchasable;
         }
 
-        if ( $this->is_catalog_only_parent( $product ) ) {
+        if ( $this->is_purchase_blocked( $product ) ) {
             return false;
         }
 
@@ -193,16 +316,11 @@ class LavendelHygiene_Gating {
     }
 
     public function filter_variation_is_purchasable( $purchasable, $variation ) {
-        if ( LavendelHygiene_Core::user_is_restricted() ) {
-            return false;
+        if ( ! $variation || ! is_a( $variation, 'WC_Product_Variation' ) ) {
+            return $purchasable;
         }
 
-        if ( $this->is_blocked_variation( $variation ) ) {
-            return false;
-        }
-
-        // Keep parent SKU-based catalog-only rule for variations.
-        if ( $this->is_catalog_only_parent( $variation ) ) {
+        if ( $this->is_purchase_blocked( $variation ) ) {
             return false;
         }
 
@@ -212,20 +330,21 @@ class LavendelHygiene_Gating {
     /* ---------------- Cart/checkout access ---------------- */
 
     public function enforce_cart_checkout_gate() {
-        if ( LavendelHygiene_Core::user_is_restricted() ) {
-            $is_cart     = function_exists( 'is_cart' )     && is_cart();
-            $is_checkout = function_exists( 'is_checkout' ) && is_checkout() && ! is_order_received_page();
+        if ( ! LavendelHygiene_Core::user_is_restricted() ) return;
 
-            if ( $is_cart || $is_checkout ) {
-                if ( ! is_user_logged_in() ) {
-                    wc_add_notice( __( 'Du må logge inn for å se priser og handle.', 'lavendelhygiene' ), 'notice' );
-                } else {
-                    wc_add_notice( __( 'Konto må bli godkjent for å se priser og handle, kontakt oss ved spørsmål.', 'lavendelhygiene' ), 'notice' );
-                }
-                wp_safe_redirect( wc_get_page_permalink( 'myaccount' ) );
-                exit;
-            }
+        $is_cart     = function_exists( 'is_cart' ) && is_cart();
+        $is_checkout = function_exists( 'is_checkout' ) && is_checkout() && ! is_order_received_page();
+
+        if ( ! $is_cart && ! $is_checkout ) return;
+
+        if ( ! is_user_logged_in() ) {
+            wc_add_notice( __( 'Du må logge inn for å se priser og handle.', 'lavendelhygiene' ), 'notice' );
+        } else {
+            wc_add_notice( __( 'Konto må bli godkjent for å se priser og handle, kontakt oss ved spørsmål.', 'lavendelhygiene' ), 'notice' );
         }
+
+        wp_safe_redirect( wc_get_page_permalink( 'myaccount' ) );
+        exit;
     }
 
     /* ---------------- UX notices ---------------- */
@@ -241,7 +360,7 @@ class LavendelHygiene_Gating {
 
         if ( ! is_user_logged_in() ) {
             $login_url   = wc_get_page_permalink( 'myaccount' );
-            $contact_url = home_url( '/kontakt/' );
+            $contact_url = $this->get_contact_url();
 
             echo '<div class="woocommerce-info">' . wp_kses_post(
                 sprintf(
@@ -264,50 +383,37 @@ class LavendelHygiene_Gating {
         global $product;
         if ( ! $product || ! is_a( $product, 'WC_Product' ) ) return;
 
-        $flag = get_post_meta( $product->get_id(), 'show_volume_pricing_notice', true );
-        $enabled = ( $flag === 'yes' || $flag === '1' );
-
-        if ( ! $enabled ) return;
-
-        $contact_url = home_url( '/kontakt/' );
-
-        $message = LavendelHygiene_Messages::render( 'volume_pricing_notice', [
-            'contact_url' => esc_url( $contact_url ),
-        ] );
-
-        echo '<div class="woocommerce-info">' . wp_kses_post( $message ) . '</div>';
-    }
-
-    public function maybe_not_purchasable_pricing_notice() {
-        if ( ! function_exists( 'is_product' ) || ! is_product() ) return;
-        if ( LavendelHygiene_Core::user_is_restricted() ) return;
-
-        $product = wc_get_product( get_queried_object_id() );
-        if ( ! $product ) return;
-
-        if ( ! $this->is_catalog_only_parent( $product ) ) return;
-
-        $contact_url = home_url( '/kontakt/' );
-
-        if ( $this->is_installation_product( $product ) ) {
-            echo '<div class="woocommerce-info">' . wp_kses_post(
-                LavendelHygiene_Messages::render( 'installation_product_notice', [
-                    'contact_url' => esc_url( $contact_url ),
-                ] )
-            ) . '</div>';
+        $show_notice = (string) get_post_meta( $product->get_id(), LavendelHygiene_ProductMetaEditor::META_VOLUME_NOTICE, true );
+        if ( $show_notice !== 'yes' ) {
             return;
         }
 
-        // Zero-price catalog-only message
-        echo '<div class="woocommerce-info">' . wp_kses_post(
-            LavendelHygiene_Messages::render( 'catalog_only_notice', [
-                'contact_url' => esc_url( $contact_url ),
-            ] )
-        ) . '</div>';
+        $message = LavendelHygiene_Messages::render( 'volume_pricing_notice', [
+            'contact_url' => esc_url( $this->get_contact_url() ),
+        ] );
 
-        // For kjøp av Hygienematter vil pris for montering komme i tillegg, <a href="%s">kontakt oss</a> for spørsmål.
+        if ( $message !== '' ) {
+            echo '<div class="woocommerce-info">' . wp_kses_post( $message ) . '</div>';
+        }
     }
 
+    public function maybe_non_purchasable_product_notice() {
+        if ( ! function_exists( 'is_product' ) || ! is_product() || LavendelHygiene_Core::user_is_restricted() ) {
+            return;
+        }
+
+        global $product;
+        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+            return;
+        }
+
+        $message = $this->get_non_purchasable_product_notice_html( $product );
+        if ( $message === '' ) {
+            return;
+        }
+
+        echo '<div class="woocommerce-info">' . wp_kses_post( $message ) . '</div>';
+    }
 
     public function inject_notice_for_blocks_cart_checkout( $block_content, $block ) {
         if ( empty( $block['blockName'] ) ) {
@@ -319,6 +425,10 @@ class LavendelHygiene_Gating {
         }
 
         if ( $block['blockName'] !== 'woocommerce/cart' ) {
+            return $block_content;
+        }
+
+        if ( LavendelHygiene_Core::user_is_restricted() ) {
             return $block_content;
         }
 
@@ -406,8 +516,8 @@ class LavendelHygiene_Gating {
         $injected = true;
 
         $message = LavendelHygiene_Messages::render( 'signup_notice', [
-            'login_url' => esc_url( wc_get_page_permalink( 'myaccount' ) ),
-            'contact_url' => esc_url( home_url( '/kontakt/' ) ),
+            'login_url'   => esc_url( wc_get_page_permalink( 'myaccount' ) ),
+            'contact_url' => esc_url( $this->get_contact_url() ),
         ] );
 
         static $printed_style = false;
@@ -470,7 +580,6 @@ class LavendelHygiene_Gating {
 
     private function scrub_price_fields_recursive( $data ) {
         if ( is_array( $data ) ) {
-            // Store API uses a nested "prices" object.
             if ( isset( $data['prices'] ) && is_array( $data['prices'] ) ) {
                 foreach ( array( 'price', 'regular_price', 'sale_price', 'price_range' ) as $k ) {
                     if ( array_key_exists( $k, $data['prices'] ) ) {
@@ -479,7 +588,6 @@ class LavendelHygiene_Gating {
                 }
             }
 
-            // Common price keys found in various Woo responses.
             foreach ( array( 'price_html', 'price', 'regular_price', 'sale_price', 'display_price', 'display_regular_price' ) as $k ) {
                 if ( array_key_exists( $k, $data ) ) {
                     $data[ $k ] = null;
