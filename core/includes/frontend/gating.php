@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 class LavendelHygiene_Gating {
     const META_TEMP_UNAVAILABLE         = '_lavh_temp_unavailable';
     const META_TEMP_UNAVAILABLE_MESSAGE = '_lavh_temp_unavailable_message';
+    const META_TEMP_UNAVAILABLE_SHOW    = '_lavh_temp_unavailable_message_enabled';
 
     public function __construct() {
         /* UX notices */
@@ -87,10 +88,24 @@ class LavendelHygiene_Gating {
     }
 
     private function is_temporarily_unavailable( $product ) {
-        $product = $this->normalize_to_parent_product( $product );
-        if ( ! $product ) return false;
+        if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+            return false;
+        }
 
+        // Variation-level flag blocks that specific variation.
+        if ( $product->is_type( 'variation' ) ) {
+            return get_post_meta( $product->get_id(), self::META_TEMP_UNAVAILABLE, true ) === 'yes';
+        }
+
+        // Parent/simple-level flag.
         return get_post_meta( $product->get_id(), self::META_TEMP_UNAVAILABLE, true ) === 'yes';
+    }
+
+    private function should_show_temp_unavailable_notice( $product ): bool {
+        $parent = $this->normalize_to_parent_product( $product );
+        if ( ! $parent ) return false;
+
+        return get_post_meta( $parent->get_id(), self::META_TEMP_UNAVAILABLE_SHOW, true ) === 'yes';
     }
 
     /* ---------------- Rules (hide price? block purchase?) ---------------- */
@@ -146,12 +161,10 @@ class LavendelHygiene_Gating {
     }
 
     private function get_temporary_unavailable_message( $product ): string {
-        $product = $this->normalize_to_parent_product( $product );
-        if ( ! $product ) {
-            return '';
-        }
+        $parent = $this->normalize_to_parent_product( $product );
+        if ( ! $parent ) return '';
 
-        $custom = (string) get_post_meta( $product->get_id(), self::META_TEMP_UNAVAILABLE_MESSAGE, true );
+        $custom = (string) get_post_meta( $parent->get_id(), self::META_TEMP_UNAVAILABLE_MESSAGE, true );
         if ( $custom !== '' ) {
             return $custom;
         }
@@ -166,7 +179,7 @@ class LavendelHygiene_Gating {
             return '';
         }
 
-        if ( $this->is_temporarily_unavailable( $product ) ) {
+        if ( $this->should_show_temp_unavailable_notice( $product ) ) {
             return $this->get_temporary_unavailable_message( $product );
         }
 
@@ -263,6 +276,7 @@ class LavendelHygiene_Gating {
                 }
             }
             $data['is_purchasable'] = false;
+            $data['variation_is_active'] = true;
             return $data;
         }
 
@@ -274,7 +288,14 @@ class LavendelHygiene_Gating {
                 }
             }
             $data['is_purchasable'] = false;
-            $data['variation_is_active'] = false;
+            $data['variation_is_active'] = true;
+            return $data;
+        }
+
+        // Temp-unavailable variations are blocked, but price is shown
+        if ( $this->is_temporarily_unavailable( $variation ) ) {
+            $data['is_purchasable'] = false;
+            $data['variation_is_active'] = true;
             return $data;
         }
 
