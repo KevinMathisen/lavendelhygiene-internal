@@ -376,6 +376,9 @@ function ttx_request(string $method, string $path, array $args = []) {
             'code'   => $code,
             'req_id' => $rid,
             'message'=> $msg,
+            'developerMessage'  => $decoded['developerMessage'] ?? null,
+            'validationMessages'=> $decoded['validationMessages'] ?? null,
+            'body'              => $decoded,
         ]);
 
         return ttx_error('ttx_http', $msg, [
