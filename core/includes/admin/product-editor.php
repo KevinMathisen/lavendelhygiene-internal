@@ -9,6 +9,11 @@ class LavendelHygiene_ProductMetaEditor {
     const META_DOCS_JSON      = '_docs';
     const META_TRIPLETEX_PRODUCT_ID = '_tripletex_product_id';
 
+    // Temporary unavailable (parent + variation)
+    const META_TEMP_UNAVAILABLE         = '_lavh_temp_unavailable';
+    const META_TEMP_UNAVAILABLE_MESSAGE = '_lavh_temp_unavailable_message';
+    const META_TEMP_UNAVAILABLE_SHOW    = '_lavh_temp_unavailable_message_enabled';
+
     public function __construct() {
         add_filter( 'woocommerce_product_data_tabs', [ $this, 'add_tab' ] );
         add_action( 'woocommerce_product_data_panels', [ $this, 'render_panel' ] );
@@ -16,7 +21,10 @@ class LavendelHygiene_ProductMetaEditor {
         add_action( 'woocommerce_admin_process_product_object', [ $this, 'save_product_fields' ] );
 
         add_action( 'woocommerce_variation_options_pricing', [ $this, 'render_variation_tripletex_id_field' ], 10, 3 );
+        add_action( 'woocommerce_variation_options_pricing', [ $this, 'render_variation_temp_unavailable_field' ], 20, 3 );
+
         add_action( 'woocommerce_save_product_variation', [ $this, 'save_variation_tripletex_id_field' ], 10, 2 );
+        add_action( 'woocommerce_save_product_variation', [ $this, 'save_variation_temp_unavailable_field' ], 20, 2 );
 
         add_action( 'admin_footer', [ $this, 'inline_admin_js' ] );
     }
@@ -43,6 +51,11 @@ class LavendelHygiene_ProductMetaEditor {
         $vol_flag = (string) get_post_meta( $product_id, self::META_VOLUME_NOTICE, true );
         $docs_raw = (string) get_post_meta( $product_id, self::META_DOCS_JSON, true );
         $ttx_pid  = (int) get_post_meta( $product_id, self::META_TRIPLETEX_PRODUCT_ID, true );
+
+        $temp_block    = (string) get_post_meta( $product_id, self::META_TEMP_UNAVAILABLE, true );
+        $temp_show     = (string) get_post_meta( $product_id, self::META_TEMP_UNAVAILABLE_SHOW, true );
+        $temp_message  = (string) get_post_meta( $product_id, self::META_TEMP_UNAVAILABLE_MESSAGE, true );
+
 
         // check if product is variable
         $wc_product = wc_get_product( $product_id );
@@ -74,6 +87,40 @@ class LavendelHygiene_ProductMetaEditor {
                     'value'       => ( $vol_flag === 'yes' ) ? 'yes' : 'no',
                     'cbvalue'     => 'yes',
                     'desc_tip'    => false,
+                ] );
+
+                // Only allow parent-level block for non-variable products.
+                if ( ! $is_variable_parent ) {
+                    woocommerce_wp_checkbox( [
+                        'id'          => self::META_TEMP_UNAVAILABLE,
+                        'label'       => __( 'Temporarily unavailable (whole product)', 'lavendelhygiene' ),
+                        'description' => __( 'Blocks purchasing for this product.', 'lavendelhygiene' ),
+                        'value'       => ( $temp_block === 'yes' ) ? 'yes' : 'no',
+                        'cbvalue'     => 'yes',
+                        'desc_tip'    => false,
+                    ] );
+                } else {
+                    echo '<p class="form-field"><label>' . esc_html__( 'Temporarily unavailable (whole product)', 'lavendelhygiene' ) . '</label>'
+                       . '<span class="description">'
+                       . esc_html__( 'This is a variable product. Block individual variations in the Variations tab.', 'lavendelhygiene' )
+                       . '</span></p>';
+                }
+
+                woocommerce_wp_checkbox( [
+                    'id'          => self::META_TEMP_UNAVAILABLE_SHOW,
+                    'label'       => __( 'Show temporary unavailable message on product page', 'lavendelhygiene' ),
+                    'description' => __( 'Controls notice visibility independently from blocking.', 'lavendelhygiene' ),
+                    'value'       => ( $temp_show === 'yes' ) ? 'yes' : 'no',
+                    'cbvalue'     => 'yes',
+                    'desc_tip'    => false,
+                ] );
+
+                woocommerce_wp_textarea_input( [
+                    'id'          => self::META_TEMP_UNAVAILABLE_MESSAGE,
+                    'label'       => __( 'Temporary unavailable message', 'lavendelhygiene' ),
+                    'description' => __( 'One shared message used for this product and blocked variations. Leave empty to use global default message.', 'lavendelhygiene' ),
+                    'desc_tip'    => false,
+                    'value'       => $temp_message,
                 ] );
 
                 if ( ! $is_variable_parent ) {
@@ -156,6 +203,28 @@ class LavendelHygiene_ProductMetaEditor {
         $vol = isset( $_POST[ self::META_VOLUME_NOTICE ] ) ? 'yes' : 'no';
         $product->update_meta_data( self::META_VOLUME_NOTICE, $vol );
 
+        // temporary unavailable (parent)
+        if ( ! $product->is_type( 'variable' ) ) {
+            $temp_block = isset( $_POST[ self::META_TEMP_UNAVAILABLE ] ) ? 'yes' : 'no';
+            $product->update_meta_data( self::META_TEMP_UNAVAILABLE, $temp_block );
+        } else {
+            $product->update_meta_data( self::META_TEMP_UNAVAILABLE, 'no' );
+        }
+
+        $temp_show  = isset( $_POST[ self::META_TEMP_UNAVAILABLE_SHOW ] ) ? 'yes' : 'no';
+        $product->update_meta_data( self::META_TEMP_UNAVAILABLE_SHOW, $temp_show );
+
+        $temp_message = isset( $_POST[ self::META_TEMP_UNAVAILABLE_MESSAGE ] )
+            ? wp_kses_post( wp_unslash( $_POST[ self::META_TEMP_UNAVAILABLE_MESSAGE ] ) )
+            : '';
+
+        $temp_message = trim( (string) $temp_message );
+        if ( $temp_message === '' ) {
+            $product->delete_meta_data( self::META_TEMP_UNAVAILABLE_MESSAGE );
+        } else {
+            $product->update_meta_data( self::META_TEMP_UNAVAILABLE_MESSAGE, $temp_message );
+        }
+
         // TTX product id (int >= 0)
         if ( ! $product->is_type( 'variable' ) && isset( $_POST[ self::META_TRIPLETEX_PRODUCT_ID ] ) ) {
             $raw = wp_unslash( $_POST[ self::META_TRIPLETEX_PRODUCT_ID ] );
@@ -222,6 +291,32 @@ class LavendelHygiene_ProductMetaEditor {
         <?php
     }
 
+    public function render_variation_temp_unavailable_field( $loop, $variation_data, $variation ) {
+        $variation_id = is_object( $variation ) && isset( $variation->ID ) ? (int) $variation->ID : 0;
+        if ( $variation_id <= 0 ) return;
+
+        $value = (string) get_post_meta( $variation_id, self::META_TEMP_UNAVAILABLE, true );
+        $field_id   = 'lh_temp_unavailable_' . (int) $loop;
+        $field_name = self::META_TEMP_UNAVAILABLE . '[' . (int) $loop . ']';
+        ?>
+        <div class="form-row form-row-full lh-temp-unavailable-variation-field">
+            <label for="<?php echo esc_attr( $field_id ); ?>">
+                <?php esc_html_e( 'Temporarily unavailable (this variation)', 'lavendelhygiene' ); ?>
+            </label>
+            <input
+                type="checkbox"
+                id="<?php echo esc_attr( $field_id ); ?>"
+                name="<?php echo esc_attr( $field_name ); ?>"
+                value="yes"
+                <?php checked( $value, 'yes' ); ?>
+            />
+            <p class="description">
+                <?php esc_html_e( 'Blocks purchasing for this variation only. Place message in product page temporary unavailable message.', 'lavendelhygiene' ); ?>
+            </p>
+        </div>
+        <?php
+    }
+
     public function save_variation_tripletex_id_field( $variation_id, $i ) {
         if ( ! current_user_can( 'edit_post', $variation_id ) ) return;
 
@@ -243,6 +338,26 @@ class LavendelHygiene_ProductMetaEditor {
             $variation->save();
         } else {
             update_post_meta( $variation_id, self::META_TRIPLETEX_PRODUCT_ID, $pid );
+        }
+    }
+
+    public function save_variation_temp_unavailable_field( $variation_id, $i ) {
+        if ( ! current_user_can( 'edit_post', $variation_id ) ) return;
+
+        $value = 'no';
+        if ( isset( $_POST[ self::META_TEMP_UNAVAILABLE ] ) && is_array( $_POST[ self::META_TEMP_UNAVAILABLE ] ) ) {
+            if ( array_key_exists( $i, $_POST[ self::META_TEMP_UNAVAILABLE ] ) ) {
+                $raw = wp_unslash( $_POST[ self::META_TEMP_UNAVAILABLE ][ $i ] );
+                $value = ( (string) $raw === 'yes' ) ? 'yes' : 'no';
+            }
+        }
+
+        $variation = wc_get_product( $variation_id );
+        if ( $variation ) {
+            $variation->update_meta_data( self::META_TEMP_UNAVAILABLE, $value );
+            $variation->save();
+        } else {
+            update_post_meta( $variation_id, self::META_TEMP_UNAVAILABLE, $value );
         }
     }
 
