@@ -393,7 +393,16 @@ final class LH_Ttx_Orders_Service {
 
         // Create in Tripletex
         $created_id = ttx_orders_create($payload);
-        if (is_wp_error($created_id)) return $created_id;
+        if (is_wp_error($created_id)) {
+            LH_Ttx_Logger::error('Tripletex order create failed', [
+                'order_id' => $order_id,
+                'user_id'  => $user_id,
+                'payload'  => $payload, // full payload sent to Tripletex
+                'error'    => $created_id->get_error_message(),
+                'data'     => $created_id->get_error_data(),
+            ]);
+            return $created_id;
+        }
 
         // Store mapping + note
         $order->update_meta_data( LH_TTX_META_TTX_ORDER_ID, (int) $created_id );
