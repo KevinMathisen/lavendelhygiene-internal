@@ -48,7 +48,12 @@ final class LH_Ttx_Webhooks {
             $requestId      = $request->get_header('x-tlx-request-id');
 
             if ($event === '' || $objectId <= 0) {
-                return new \WP_REST_Response(['error' => __('Ugyldig payload: mangler event/id.', 'lh-ttx')], 400);
+                // Ugyldig payload: mangler event/id.
+                return new \WP_REST_Response([
+                    'ok'      => true, 
+                    'ignored' => true, 
+                    'reason'  => 'invalid_payload'
+                ], 200);
             }
 
             // Route by event prefix
