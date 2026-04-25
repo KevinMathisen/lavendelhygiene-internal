@@ -189,3 +189,22 @@ curl -s -X GET "$BASE/event/subscription" \
   -H "Accept: application/json" \
   -H "Authorization: Basic $AUTH_BASIC"
 ```
+
+Set existing webhook to active
+```bash
+export id="WEBHOOK_ID"
+
+payload=$(jq -n \
+  --arg id "$id" \
+  --arg status "ACTIVE" \
+  '{
+    id: $id,
+    status: $status,
+  }')
+
+curl -X PUT "$BASE/event/subscription/$id" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $AUTH_BASIC" \
+  --data "$payload"
+```
