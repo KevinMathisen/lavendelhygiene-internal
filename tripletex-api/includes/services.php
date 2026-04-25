@@ -632,7 +632,7 @@ function get_tripletex_product_id_from_wc_product(\WC_Product $product) {
     }
 
     // ignore catalog-only products
-    $ignore_skus = [ '100', '108', '1000' ];
+    $ignore_skus = [ '100', '108', '1000', '1001', '1002' ];
     $sku = trim((string) $product->get_sku());
     if ($sku !== '' && in_array($sku, $ignore_skus, true)) {
         $product->update_meta_data('_tripletex_product_id', 0);
