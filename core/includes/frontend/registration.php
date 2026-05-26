@@ -11,6 +11,10 @@ class LavendelHygiene_Registration {
         add_action( 'user_register', [ $this, 'set_pending_role' ], 20 );
 
         add_filter( 'woocommerce_new_customer_username', [ $this, 'filter_username_company' ], 10, 3 );
+
+        // Redirect wordpress registration to woocommerce my account
+        add_action( 'login_form_register', [ $this, 'redirect_wp_registration' ] );
+        add_filter( 'register_url', [ $this, 'filter_register_url' ] );
     }
 
      /**
@@ -434,5 +438,29 @@ class LavendelHygiene_Registration {
         }
 
         return $base;
+    }
+
+    /**
+     * Redirect native WordPress registration to WooCommerce My Account.
+     */
+    public function redirect_wp_registration() {
+        if ( function_exists( 'wc_get_page_permalink' ) ) {
+            wp_safe_redirect( wc_get_page_permalink( 'myaccount' ) );
+            exit;
+        }
+
+        wp_safe_redirect( home_url( '/my-account/' ) );
+        exit;
+    }
+
+    /**
+     * Make WordPress-generated registration links point to WooCommerce.
+     */
+    public function filter_register_url( $url ) {
+        if ( function_exists( 'wc_get_page_permalink' ) ) {
+            return wc_get_page_permalink( 'myaccount' );
+        }
+
+        return home_url( '/my-account/' );
     }
 }
