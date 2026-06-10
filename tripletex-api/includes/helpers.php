@@ -5,6 +5,14 @@
 
 if (!defined('ABSPATH')) exit;
 
+if (!defined('LH_TTX_META_TRIPLETEX_ID'))               define('LH_TTX_META_TRIPLETEX_ID', 'tripletex_customer_id');
+if (!defined('LH_TTX_META_TTX_CONTACT_ID'))             define('LH_TTX_META_TTX_CONTACT_ID', '_tripletex_contact_id');
+if (!defined('LH_TTX_META_TTX_DELIVERY_ADDRESS_ID'))    define('LH_TTX_META_TTX_DELIVERY_ADDRESS_ID', '_tripletex_delivery_address_id');
+if (!defined('LH_TTX_META_IS_AVDELING'))                define('LH_TTX_META_IS_AVDELING', '_lh_ttx_is_avdeling');
+if (!defined('LH_TTX_META_AVDELING_NAME'))              define('LH_TTX_META_AVDELING_NAME', '_lh_ttx_avdeling_name');
+if (!defined('LH_TTX_META_TTX_ORDER_ID'))               define('LH_TTX_META_TTX_ORDER_ID', '_tripletex_order_id');
+if (!defined('LH_TTX_META_TTX_STATUS'))                 define('LH_TTX_META_TTX_STATUS',   '_tripletex_status');
+if (!defined('LH_TTX_META_TTX_LAST_SYNC_AT'))           define('LH_TTX_META_TTX_LAST_SYNC_AT', '_tripletex_last_sync_at');
 
 /**
  * Get the linked Tripletex customer ID for a WordPress user.
@@ -66,4 +74,42 @@ function get_tripletex_product_id_from_wc_product(\WC_Product $product) {
     $product->save();
 
     return $ttx_id;
+}
+
+function lh_ttx_is_avdeling(int $user_id): bool {
+    if ($user_id <= 0) return false;
+
+    $val = get_user_meta($user_id, LH_TTX_META_IS_AVDELING, true);
+
+    return in_array($val, ['1', 1, true, 'yes', 'on'], true);
+}
+
+function lh_ttx_get_avdeling_name(int $user_id): string {
+    if ($user_id <= 0) return '';
+
+    return trim((string) get_user_meta($user_id, LH_TTX_META_AVDELING_NAME, true));
+}
+
+function lh_ttx_get_linked_contact_tripletex_id(int $user_id): int {
+    if ($user_id <= 0) return 0;
+
+    return (int) get_user_meta($user_id, LH_TTX_META_TTX_CONTACT_ID, true);
+}
+
+function lh_ttx_set_linked_contact_tripletex_id(int $user_id, int $contact_id): void {
+    if ($user_id <= 0) return;
+
+    update_user_meta($user_id, LH_TTX_META_TTX_CONTACT_ID, max(0, $contact_id));
+}
+
+function lh_ttx_get_linked_delivery_address_id(int $user_id): int {
+    if ($user_id <= 0) return 0;
+
+    return (int) get_user_meta($user_id, LH_TTX_META_TTX_DELIVERY_ADDRESS_ID, true);
+}
+
+function lh_ttx_set_linked_delivery_address_id(int $user_id, int $delivery_address_id): void {
+    if ($user_id <= 0) return;
+
+    update_user_meta($user_id, LH_TTX_META_TTX_DELIVERY_ADDRESS_ID, max(0, $delivery_address_id));
 }

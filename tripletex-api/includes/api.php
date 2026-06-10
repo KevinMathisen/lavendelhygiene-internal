@@ -415,17 +415,16 @@ function ttx_customers_create(array $payload) {
     $res = ttx_post('/customer', $payload);
     if (is_wp_error($res)) return $res;
 
-    $id = (int) ($res['id'] ?? 0);
-    if ($id <= 0) {
+    if ((int) ($res['id'] ?? 0) <= 0) {
         return ttx_error('ttx_create_missing_id', __('Tripletex returnerte ikke en gyldig ID.', 'lh-ttx'), ['response' => $res]);
     }
-    return $id;
+    return $res;
 }
 
 /**
  * Update customer by id.
  *
- * @return bool|\WP_Error
+ * @return array|\WP_Error
  */
 function ttx_customers_update(int $id, array $payload, ?int $version = null) {
     if ($id <= 0) return ttx_error('ttx_id_invalid', __('Ugyldig Tripletex-ID.', 'lh-ttx'));
@@ -434,7 +433,7 @@ function ttx_customers_update(int $id, array $payload, ?int $version = null) {
     $res = ttx_put("/customer/{$id}", $payload);
     if (is_wp_error($res)) return $res;
 
-    return true;
+    return $res;
 }
 
 /**
@@ -444,7 +443,7 @@ function ttx_customers_update(int $id, array $payload, ?int $version = null) {
  */
 function ttx_customers_get(int $id, $fields = null) {
     if ($id <= 0) return ttx_error('ttx_id_invalid', __('Ugyldig Tripletex-ID.', 'lh-ttx'));
-    $defaultFields = 'id,email,phoneNumber,postalAddress(addressLine1,addressLine2,postalCode,city,country(isoAlpha2Code)),deliveryAddress(id,addressLine1,addressLine2,postalCode,city,country(isoAlpha2Code))';
+    $defaultFields = 'id,email,phoneNumber,phoneNumberMobile,postalAddress(addressLine1,addressLine2,postalCode,city,country(isoAlpha2Code)),deliveryAddress(id,addressLine1,addressLine2,postalCode,city,country(isoAlpha2Code))';
     $fieldsParam = $fields ? $fields : $defaultFields;
 
     $res = ttx_get("/customer/{$id}", ['fields' => $fieldsParam]);
@@ -464,7 +463,7 @@ function ttx_customers_get(int $id, $fields = null) {
 function ttx_delivery_address_get(int $id, $fields = null) {
     if ($id <= 0) return ttx_error('ttx_id_invalid', __('Ugyldig Tripletex-ID.', 'lh-ttx'));
 
-    $defaultFields = 'id,addressLine1,addressLine2,postalCode,city,country(isoAlpha2Code)';
+    $defaultFields = 'id,addressLine1,addressLine2,postalCode,city,country(isoAlpha2Code),customerVendor(id)';
     $fieldsParam   = $fields ? $fields : $defaultFields;
 
     $res = ttx_get("/deliveryAddress/{$id}", ['fields' => $fieldsParam]);
@@ -556,6 +555,24 @@ function ttx_delivery_address_update(int $id, array $payload) {
  * -------------------------------------------------------------------------- */
 
 /**
+ * Get contact by id
+ *
+ * @return array|\WP_Error
+ */
+function ttx_contact_get_by_id(int $id, $fields = null) {
+    if ($id <= 0) {
+        return ttx_error('ttx_id_invalid', __('Ugyldig Tripletex-kontakt-ID.', 'lh-ttx'));
+    }
+
+    $fieldsParam = $fields ?: 'id,firstName,lastName,email,phoneNumberWork,customer(id)';
+
+    $res = ttx_get("/contact/{$id}", ['fields' => $fieldsParam]);
+    if (is_wp_error($res)) return $res;
+
+    return $res;
+}
+
+/**
  * Get contact by email and customer id.
  *
  * @return array|\WP_Error
@@ -567,7 +584,7 @@ function ttx_contact_get(string $email, int $customer_id) {
     $res = ttx_get('/contact', [
         'email' => $email,
         'customerId' => $customer_id,
-        'fields' => 'id,firstName,lastName,email'
+        'fields' => 'id,firstName,lastName,email,phoneNumberWork,customer(id)'
     ]);
 
     if (is_wp_error($res)) return $res;

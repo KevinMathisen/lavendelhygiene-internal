@@ -29,7 +29,14 @@ define('LH_TTX_OPT_SESSION_TOKEN',   'lh_ttx_session_token');
 define('LH_TTX_OPT_SESSION_EXPIRES', 'lh_ttx_session_expires');
 
 /** key we use to link customers to tripletex */
-define('LH_TTX_META_TRIPLETEX_ID',      'tripletex_customer_id');
+if (!defined('LH_TTX_META_TRIPLETEX_ID'))               define('LH_TTX_META_TRIPLETEX_ID', 'tripletex_customer_id');
+if (!defined('LH_TTX_META_TTX_CONTACT_ID'))             define('LH_TTX_META_TTX_CONTACT_ID', '_tripletex_contact_id');
+if (!defined('LH_TTX_META_TTX_DELIVERY_ADDRESS_ID'))    define('LH_TTX_META_TTX_DELIVERY_ADDRESS_ID', '_tripletex_delivery_address_id');
+if (!defined('LH_TTX_META_IS_AVDELING'))                define('LH_TTX_META_IS_AVDELING', '_lh_ttx_is_avdeling');
+if (!defined('LH_TTX_META_AVDELING_NAME'))              define('LH_TTX_META_AVDELING_NAME', '_lh_ttx_avdeling_name');
+if (!defined('LH_TTX_META_TTX_ORDER_ID'))               define('LH_TTX_META_TTX_ORDER_ID', '_tripletex_order_id');
+if (!defined('LH_TTX_META_TTX_STATUS'))                 define('LH_TTX_META_TTX_STATUS',   '_tripletex_status');
+if (!defined('LH_TTX_META_TTX_LAST_SYNC_AT'))           define('LH_TTX_META_TTX_LAST_SYNC_AT', '_tripletex_last_sync_at');
 
 /**
  * Activation: ensure options exist

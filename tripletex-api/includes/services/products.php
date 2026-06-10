@@ -1,5 +1,4 @@
 <?php
-<?php
 if (!defined('ABSPATH')) exit;
 
 if (!class_exists('LH_Ttx_Logger')) {

@@ -1,5 +1,4 @@
 <?php
-<?php
 if (!defined('ABSPATH')) exit;
 
 if (!class_exists('LH_Ttx_Logger')) {
@@ -27,8 +26,6 @@ final class LH_Ttx_Orders_Service {
         $order = wc_get_order($order_id);
         if (!$order) return new WP_Error('order_missing', __('Finner ikke ordre.', 'lh-ttx'));
 
-        // Ensure customer is linked
-        $customer_service = (new LH_Ttx_Customers_Service());
         $user_id = (int) $order->get_user_id();
 
         if ($user_id <= 0) {
@@ -37,22 +34,59 @@ final class LH_Ttx_Orders_Service {
 
         $ttx_customer_id = lh_ttx_get_linked_tripletex_id($user_id);
         if (!$ttx_customer_id) {
-            return new WP_Error('link_failed', __('Kunne ikke linke kunde mot Tripletex.', 'lh-ttx'));
+            return new WP_Error('link_failed', __('Kunde er ikke koblet mot Tripletex.', 'lh-ttx'));
+        }
+
+        $customer_service = new LH_Ttx_Customers_Service();
+
+        $ttx_contact_id = $customer_service->ensure_and_get_contact_tripletex_id($user_id, $ttx_customer_id);
+        if (is_wp_error($ttx_contact_id)) {
+            LH_Ttx_Logger::error('Tripletex order create failed: contact sync failed', [
+                'order_id' => $order_id,
+                'user_id'  => $user_id,
+                'ttx_customer_id' => $ttx_customer_id,
+                'error'    => $ttx_contact_id->get_error_message(),
+                'data'     => $ttx_contact_id->get_error_data(),
+            ]);
+            return $ttx_contact_id;
+        }
+
+        $ttx_delivery_address_id = $customer_service->ensure_and_get_delivery_address_tripletex_id($user_id, $ttx_customer_id);
+
+        if (is_wp_error($ttx_delivery_address_id)) {
+            LH_Ttx_Logger::error('Tripletex order create failed: delivery address sync failed', [
+                'order_id' => $order_id,
+                'user_id'  => $user_id,
+                'ttx_customer_id' => $ttx_customer_id,
+                'ttx_contact_id'  => (int) $ttx_contact_id,
+                'error'    => $ttx_delivery_address_id->get_error_message(),
+                'data'     => $ttx_delivery_address_id->get_error_data(),
+            ]);
+            return $ttx_delivery_address_id;
         }
 
         // Build payload
-        $payload = $this->map_order_to_tripletex_payload($order, $ttx_customer_id);
+        $payload = $this->map_order_to_tripletex_payload(
+            $order,
+            $ttx_customer_id,
+            (int) $ttx_contact_id,
+            (int) $ttx_delivery_address_id
+        );
 
         // Create in Tripletex
         $created_id = ttx_orders_create($payload);
         if (is_wp_error($created_id)) {
             LH_Ttx_Logger::error('Tripletex order create failed', [
-                'order_id' => $order_id,
-                'user_id'  => $user_id,
-                'payload'  => $payload, // full payload sent to Tripletex
-                'error'    => $created_id->get_error_message(),
-                'data'     => $created_id->get_error_data(),
+                'order_id'                => $order_id,
+                'user_id'                 => $user_id,
+                'ttx_customer_id'         => $ttx_customer_id,
+                'ttx_contact_id'          => (int) $ttx_contact_id,
+                'ttx_delivery_address_id' => (int) $ttx_delivery_address_id,
+                'payload'                 => $payload,
+                'error'                   => $created_id->get_error_message(),
+                'data'                    => $created_id->get_error_data(),
             ]);
+
             return $created_id;
         }
 
@@ -64,8 +98,12 @@ final class LH_Ttx_Orders_Service {
         $order->add_order_note(sprintf(__('Tripletex-ordre opprettet (ID: %d).', 'lh-ttx'), (int) $created_id));
 
         LH_Ttx_Logger::info('Created Tripletex order', [
-            'order_id' => $order_id,
-            'ttx_id'   => (int) $created_id,
+            'order_id'                => $order_id,
+            'ttx_order_id'            => (int) $created_id,
+            'user_id'                 => $user_id,
+            'ttx_customer_id'         => $ttx_customer_id,
+            'ttx_contact_id'          => (int) $ttx_contact_id,
+            'ttx_delivery_address_id' => (int) $ttx_delivery_address_id,
         ]);
 
         return (int) $created_id;
@@ -74,14 +112,20 @@ final class LH_Ttx_Orders_Service {
     /* ------------------------- Helpers ------------------------- */
 
     /**
-     * Build a minimal Tripletex order payload from WC_Order.
-     * Fill in only what you actually use; leave TODOs for spec-specific fields.
+     * Build Tripletex order payload from WC_Order.
      *
      * @param \WC_Order $order
      * @param int       $ttx_customer_id
+     * @param int       $ttx_contact_id
+     * @param int       $ttx_delivery_address_id
      * @return array
      */
-    private function map_order_to_tripletex_payload(\WC_Order $order, int $ttx_customer_id): array {
+    private function map_order_to_tripletex_payload(
+        \WC_Order $order,
+        int $ttx_customer_id,
+        int $ttx_contact_id,
+        int $ttx_delivery_address_id
+    ): array {
         $currency = $order->get_currency();
         $order_dt = (new DateTimeImmutable('@' . $order->get_date_created()->getTimestamp()))->format('Y-m-d');
 
@@ -91,6 +135,14 @@ final class LH_Ttx_Orders_Service {
             'orderDate'     => $order_dt, 
             'deliveryDate'  => $order_dt,
         ];
+
+        if ($ttx_contact_id > 0) {
+            $payload['contact'] = ['id' => $ttx_contact_id];
+        }
+
+        if ($ttx_delivery_address_id > 0) {
+            $payload['deliveryAddress'] = ['id' => $ttx_delivery_address_id];
+        }
 
         $payload['invoiceComment'] = $this->compose_invoice_comment($order);
 
@@ -105,23 +157,27 @@ final class LH_Ttx_Orders_Service {
 
             $line = [ 'count' => $qty, ];
 
-            $ttx_product_id = get_tripletex_product_id_from_wc_product($product);
+            if ($product instanceof \WC_Product) {
+                $ttx_product_id = get_tripletex_product_id_from_wc_product($product);
 
-            if (!is_wp_error($ttx_product_id) && $ttx_product_id > 0) {
-                $line['product'] = [ 'id' => (int) $ttx_product_id ];
+                if (!is_wp_error($ttx_product_id) && (int) $ttx_product_id > 0) {
+                    $line['product'] = ['id' => (int) $ttx_product_id];
 
-                // apply discount if user has any for this product
-                if ($user_id > 0 && $product) {
-                    $d = $discSvc->get_discount_for_product($product, $user_id);
-                    if (!is_wp_error($d) && is_array($d)) {
-                        $pct = (float) ($d['pct'] ?? 0);
-                        if ($pct > 0) {
-                            $line['discount'] = $pct;
+                    if ($user_id > 0) {
+                        $discount = $discSvc->get_discount_for_product($product, $user_id);
+
+                        if (!is_wp_error($discount) && is_array($discount)) {
+                            $pct = (float) ($discount['pct'] ?? 0);
+
+                            if ($pct > 0) {
+                                $line['discount'] = $pct;
+                            }
                         }
                     }
+                } else {
+                    $line['description'] = $item->get_name();
                 }
             } else {
-                // Fallback: send description only
                 $line['description'] = $item->get_name();
             }
 
@@ -168,11 +224,20 @@ final class LH_Ttx_Orders_Service {
         $lines[] = 'ORDER FRA NETTBUTIKK, SE INFO UNDER';
 
         if ($customer_note !== '') {
-            $lines[] = $customer_note;
             $lines[] = '';
+            $lines[] = '=== Kundekommentar ===';
+            $lines[] = $customer_note;
         }
 
-        $lines[] = 'KONTAKTPERSON LEVERING:';
+        if ($user_id > 0 && lh_ttx_is_avdeling($user_id)) {
+            $avdeling_name = lh_ttx_get_avdeling_name($user_id);
+
+            $lines[] = '';
+            $lines[] = '=== Avdeling ===';
+            $lines[] = $avdeling_name !== '' ? $avdeling_name : '-';
+        }
+
+        $lines[] = '=== Kontaktperson Levering ===';
         $contactParts = array_filter([$ship_first, $ship_last, $ship_phone], static function($v) {
             return $v !== null && $v !== '';
         });
@@ -182,7 +247,7 @@ final class LH_Ttx_Orders_Service {
         }
 
         $lines[] = '';
-        $lines[] = 'LEVERINGS ADRESSE:';
+        $lines[] = '=== Leverings Adresse ===';
         $line1 = trim($addr1 . ($addr2 ? ' ' . $addr2 : ''));
         if ($line1 !== '') $lines[] = $line1;
 
