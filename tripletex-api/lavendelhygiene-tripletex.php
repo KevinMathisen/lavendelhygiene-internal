@@ -131,6 +131,7 @@ add_action('plugins_loaded', function () {
     }
 
     require_once LH_TTX_PLUGIN_DIR . 'includes/api.php';
+    require_once LH_TTX_PLUGIN_DIR . 'includes/helpers.php';
     require_once LH_TTX_PLUGIN_DIR . 'includes/services.php';
     require_once LH_TTX_PLUGIN_DIR . 'includes/settings-page.php';
     require_once LH_TTX_PLUGIN_DIR . 'includes/webhooks.php';
