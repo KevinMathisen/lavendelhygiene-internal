@@ -473,6 +473,70 @@ function ttx_delivery_address_get(int $id, $fields = null) {
 }
 
 /**
+ * Get delivery address by postal code, city, customer id and address line.
+ *
+ * @return array|\WP_Error
+ */
+function ttx_delivery_address_get_without_id(string $post_code, string $city, int $customer_id, string $address_line1) {
+    if ($customer_id <= 0) return ttx_error('ttx_id_invalid', __('Ugyldig Tripletex-kunde-ID.', 'lh-ttx'));
+    if (empty(trim($post_code)) || empty(trim($city))) return ttx_error('ttx_address_invalid', __('Ugyldig postnummer eller by.', 'lh-ttx'));
+
+    $res = ttx_get('/deliveryAddress', [
+        'postalCode' => $post_code,
+        'city' => $city,
+        'fields' => 'id,addressLine1,addressLine2,postalCode,city,customerVendor(id)'
+    ]);
+
+    if (is_wp_error($res)) return $res;
+
+    if (!is_array($res) || empty($res)) {
+        return null;
+    }
+
+    $candidates = array_values(array_filter($res, static function ($address) use ($customer_id, $address_line1) {
+        $address = (array) $address;
+        $customer = (array) ($address['customerVendor'] ?? []);
+        $ttxCustomerId = (int) ($customer['id'] ?? 0);
+
+        if ($ttxCustomerId !== $customer_id) {
+            return false;
+        }
+
+        $addr1 = (string) ($address['addressLine1'] ?? '');
+        $addr2 = (string) ($address['addressLine2'] ?? '');
+
+        $address_line1_lower = mb_strtolower(trim($address_line1), 'UTF-8');
+        $addr1_lower = mb_strtolower(trim($addr1), 'UTF-8');
+        $addr2_lower = mb_strtolower(trim($addr2), 'UTF-8');
+
+        return ($addr1_lower === $address_line1_lower || $addr2_lower === $address_line1_lower);
+    }));
+
+    if (count($candidates) === 1) {
+        return $candidates[0];
+    }
+
+    if (count($candidates) > 1) {
+        return ttx_error('ttx_delivery_address_ambiguous', __('Fant flere mulige leveringsadresser.', 'lh-ttx'), ['candidates' => $candidates]);
+    }
+
+    return null; // no matching delivery address on tripletex
+}
+
+/**
+ * Create a new delivery address.
+ *
+ * @return array|\WP_Error
+ */
+function ttx_delivery_address_create(array $payload) {
+    // POST /deliveryAddress expects a DeliveryAddress object in the body
+    $res = ttx_post('/deliveryAddress', $payload);
+    if (is_wp_error($res)) return $res;
+    return $res;
+}
+
+
+/**
  * Update delivery address by id (partial object).
  *
  * @return bool|\WP_Error
@@ -485,6 +549,57 @@ function ttx_delivery_address_update(int $id, array $payload) {
 
     return true;
 }
+
+
+/** -------------------------------------------------------------------------
+ * Contacts
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Get contact by email and customer id.
+ *
+ * @return array|\WP_Error
+ */
+function ttx_contact_get(string $email, int $customer_id) {
+    if ($customer_id <= 0) return ttx_error('ttx_id_invalid', __('Ugyldig Tripletex-kunde-ID.', 'lh-ttx'));
+    if (empty(trim($email))) return ttx_error('ttx_email_invalid', __('Ugyldig e-post.', 'lh-ttx'));
+
+    $res = ttx_get('/contact', [
+        'email' => $email,
+        'customerId' => $customer_id,
+        'fields' => 'id,firstName,lastName,email'
+    ]);
+
+    if (is_wp_error($res)) return $res;
+    return $res;
+}
+
+/**
+ * Create a new contact.
+ *
+ * @return array|\WP_Error
+ */
+function ttx_contact_create(array $payload) {
+    // POST /contact expects a Contact object in the body
+    $res = ttx_post('/contact', $payload);
+    if (is_wp_error($res)) return $res;
+    return $res;
+}
+
+/**
+ * Update contact by id (partial object).
+ *
+ * @return bool|\WP_Error
+ */
+function ttx_contact_update(int $id, array $payload) {
+    if ($id <= 0) return ttx_error('ttx_id_invalid', __('Ugyldig Tripletex-ID.', 'lh-ttx'));
+
+    $res = ttx_put("/contact/{$id}", $payload);
+    if (is_wp_error($res)) return $res;
+
+    return true;
+}
+
 
 /** -------------------------------------------------------------------------
  * Products
