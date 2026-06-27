@@ -39,6 +39,8 @@ final class LavendelHygiene_Core {
     const META_TRIPLETEX_ID    = 'tripletex_customer_id';
     const META_TTX_LINKED_BY   = 'tripletex_linked_by';
     const META_TTX_LINKED_AT   = 'tripletex_linked_at';
+    const META_IS_AVDELING   = '_lh_ttx_is_avdeling';
+    const META_AVDELING_NAME = '_lh_ttx_avdeling_name';
 
     public function __construct() {
         // lifecycle
