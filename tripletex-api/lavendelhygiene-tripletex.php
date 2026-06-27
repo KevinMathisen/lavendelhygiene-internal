@@ -225,9 +225,32 @@ add_action('plugins_loaded', function () {
         }
     });
 
-    add_action('lavendelhygiene_tripletex_linked', function ($user_id) use ($services) {
-        $services->discounts()->invalidate_user_discount_cache((int) $user_id);
+    add_action('lavendelhygiene_tripletex_linked', function ($user_id, $ttx_customer_id = 0, $actor_user_id = 0) use ($services) {
+        $user_id = (int) $user_id;
+        if ($user_id <= 0) return;
+
+        // Tripletex customer link changed, so discount data may also have changed.
+        $services->discounts()->invalidate_user_discount_cache($user_id);
+
+        // A user was linked to a Tripletex customer, ensure contact/delivery is synced
+        $res = $services->customers()->sync_user($user_id);
+
+        if (is_wp_error($res)) {
+            LH_Ttx_Logger::error('Tripletex customer sync after linking failed', [
+                'user_id'        => $user_id,
+                'ttx_customer_id'=> (int) $ttx_customer_id,
+                'actor_user_id'  => (int) $actor_user_id,
+                'error'          => $res->get_error_message(),
+                'data'           => $res->get_error_data(),
+            ]);
+        }
     }, 10, 3);
+
+    add_action('lavendelhygiene_tripletex_unlinked', function ($user_id) use ($services) {
+        $user_id = (int) $user_id;
+        if ($user_id <= 0) return;
+        $services->discounts()->invalidate_user_discount_cache($user_id);
+    }, 10, 1);
 });
 
 /**
