@@ -195,22 +195,6 @@ class LavendelHygiene_TripletexLinkingService {
         return true;
     }
 
-    // todo: remove is_ttx_id_unique
-    public function is_ttx_id_unique( string $ttx_id, int $exclude_user_id = 0 ): bool {
-        if ( $ttx_id === '' ) return true;
-        $q = new WP_User_Query( [
-            'number'   => 1,
-            'fields'   => 'ID',
-            'meta_key' => LavendelHygiene_Core::META_TRIPLETEX_ID,
-            'meta_value' => $ttx_id,
-            'meta_compare' => '=',
-        ] );
-        $found = $q->get_results();
-        if ( empty( $found ) ) return true;
-        $first = (int) $found[0];
-        return $first === (int) $exclude_user_id;
-    }
-
     /**
      * Validate and save a Tripletex customer link.
      *

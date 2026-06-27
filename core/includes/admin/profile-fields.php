@@ -50,17 +50,26 @@ class LavendelHygiene_ProfileFields {
         $svc = new LavendelHygiene_TripletexLinkingService();
         $id  = $svc->sanitize_ttx_id( (string) $_POST['tripletex_customer_id'] );
 
-        if ( $id === '' ) { $svc->clear_ttx_id_wp( $user_id ); return; }
-        if ( ! $svc->is_ttx_id_unique( $id, $user_id ) ) { return; } // validator already added the error
-        $svc->set_ttx_id_wp( $user_id, $id, get_current_user_id() );
+        if ( $id === $svc->get_ttx_id( (int) $user_id ) ) return;
+
+        /*
+        * Central service handles:
+        * - clearing an empty ID;
+        * - company/orgnummer validation;
+        * - clearing stale contact and delivery-address IDs;
+        * - firing linked/unlinked actions.
+        */
+        $svc->save_ttx_id_from_input(
+            (int) $user_id,
+            $id,
+            get_current_user_id()
+        );
     }
 
     public function validate_profile( $errors, $update, $user ) {
-        // Only admins/shop managers can change this field
         if ( ! current_user_can( 'promote_users' ) && ! current_user_can( 'manage_woocommerce' ) ) {
             return;
         }
-        // Only validate if our field is present
         if ( ! isset( $_POST['tripletex_customer_id'] ) ) {
             return;
         }
@@ -73,9 +82,17 @@ class LavendelHygiene_ProfileFields {
         $svc = new LavendelHygiene_TripletexLinkingService();
         $id  = $svc->sanitize_ttx_id( (string) $_POST['tripletex_customer_id'] );
 
-        // Empty is allowed (clears mapping), so only check uniqueness if non-empty
-        if ( $id !== '' && ! $svc->is_ttx_id_unique( $id, (int) $user->ID ) ) {
-            $errors->add( 'tripletex_duplicate', __( 'Tripletex ID already linked to another user.', 'lavendelhygiene' ) );
+        // Empty is allowed (clears mapping)
+        if ( $id === '' ) return;
+
+        if ( $id === $svc->get_ttx_id( (int) $user->ID ) ) return;
+
+        $validation = $svc->validate_ttx_id_for_user( (int) $user->ID, $id);
+
+        if ( is_wp_error( $validation ) ) {
+            $code = $validation->get_error_code();
+
+            $errors->add($code ?: 'tripletex_link_invalid', $validation->get_error_message() );
         }
     }
 
