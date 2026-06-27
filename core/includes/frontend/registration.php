@@ -61,6 +61,7 @@ class LavendelHygiene_Registration {
 
         $posted_sector    = $posted( 'company_sector' );
         $use_ehf_checked  = isset( $_POST['use_ehf'] ) ? (bool) $_POST['use_ehf'] : true; // default checked
+        $is_avdeling_checked = isset( $_POST['lh_is_avdeling'] );
         $same_shipping_checked = isset( $_POST['shipping_same_as_billing'] )
             ? (bool) $_POST['shipping_same_as_billing']
             : true;
@@ -115,6 +116,29 @@ class LavendelHygiene_Registration {
 
                 updateShippingVisibility();
                 same.addEventListener('change', updateShippingVisibility);
+
+                // Avdeling
+                var isAvdeling = document.getElementById('lh_is_avdeling');
+                var avdelingWrapper = document.getElementById('lh_avdeling_name_wrapper');
+                var avdelingName = document.getElementById('lh_avdeling_name');
+
+                function updateAvdelingVisibility() {
+                    if (!isAvdeling || !avdelingWrapper || !avdelingName) return;
+
+                    if (isAvdeling.checked) {
+                        avdelingWrapper.style.display = '';
+                        avdelingName.setAttribute('required', 'required');
+                    } else {
+                        avdelingWrapper.style.display = 'none';
+                        avdelingName.removeAttribute('required');
+                    }
+                }
+
+                updateAvdelingVisibility();
+
+                if (isAvdeling) {
+                    isAvdeling.addEventListener('change', updateAvdelingVisibility);
+                }
             });
         </script>
 
@@ -152,6 +176,34 @@ class LavendelHygiene_Registration {
                     <input type="checkbox" name="use_ehf" value="1" <?php checked( $use_ehf_checked, true ); ?> />
                     <span><?php esc_html_e( 'Motta faktura på EHF', 'lavendelhygiene' ); ?></span>
                 </label>
+            </p>
+
+            <!-- Avdeling checkbox -->
+            <p class="form-row lavendelhygiene-checkbox">
+                <label style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" name="lh_is_avdeling" id="lh_is_avdeling" value="1" <?php checked( $is_avdeling_checked, true ); ?>
+                    />
+                    <span><?php esc_html_e( 'Dette er en avdeling under et allerede registrert firma', 'lavendelhygiene' ); ?></span>
+                </label>
+            </p>
+
+            <p
+                class="form-row form-row-wide"
+                id="lh_avdeling_name_wrapper"
+                <?php echo $is_avdeling_checked ? '' : 'style="display:none;"'; ?>
+            >
+                <label for="lh_avdeling_name">
+                    <?php esc_html_e( 'Navn på avdeling', 'lavendelhygiene' ); ?>
+                    <span class="required">*</span>
+                </label>
+                <input
+                    type="text"
+                    class="input-text"
+                    name="lh_avdeling_name"
+                    id="lh_avdeling_name"
+                    value="<?php echo $posted( 'lh_avdeling_name' ); ?>"
+                    <?php echo $is_avdeling_checked ? 'required' : ''; ?>
+                />
             </p>
 
             <!-- Kontaktperson -->
@@ -278,6 +330,11 @@ class LavendelHygiene_Registration {
                 'shipping_country'   => __( 'Levering land', 'lavendelhygiene' ),
             ];
         }
+        if ( ! empty( $_POST['lh_is_avdeling'] ) ) {
+            $required += [
+                'lh_avdeling_name' => __( 'Avdeling navn', 'lavendelhygiene' ),
+            ];
+        }
 
         foreach ( $required as $key => $label ) {
             if ( empty( $_POST[ $key ] ) ) {
@@ -304,12 +361,7 @@ class LavendelHygiene_Registration {
                     'meta_value' => $orgnr_digits,
                 ] );
 
-                if ( ! empty( $existing ) ) {
-                    $errors->add(
-                        'orgnr_duplicate',
-                        __( 'En bruker med dette organisasjonsnummeret er allerede registrert.', 'lavendelhygiene' )
-                    );
-                }
+                // TODO: just inform user that there are miltiple accounts connected to this orgnummer
             }
         }
 
@@ -401,6 +453,16 @@ class LavendelHygiene_Registration {
         // EHF (checkbox)
         $use_ehf = isset( $_POST['use_ehf'] ) ? 'yes' : 'no';
         update_user_meta( $customer_id, LavendelHygiene_Core::META_USE_EHF, $use_ehf );
+
+        // Avdeling metadata
+        $is_avdeling = ! empty( $_POST['lh_is_avdeling'] );
+        update_user_meta( $customer_id, LavendelHygiene_Core::META_IS_AVDELING, $is_avdeling ? '1' : '0' );
+
+        $avdeling_name = '';
+        if ( isset( $_POST['lh_avdeling_name'] ) ) {
+            $avdeling_name = sanitize_text_field( wp_unslash( $_POST['lh_avdeling_name'] ) );
+        }
+        update_user_meta( $customer_id, LavendelHygiene_Core::META_AVDELING_NAME, $avdeling_name );
 
         // Set status to pending
         update_user_meta( $customer_id, LavendelHygiene_Core::META_STATUS, 'pending' );
