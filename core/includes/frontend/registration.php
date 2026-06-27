@@ -394,7 +394,6 @@ class LavendelHygiene_Registration {
         // Map + save basics
         $map = [
             'company_name'       => 'billing_company',
-            'orgnr'              => LavendelHygiene_Core::META_ORGNR,
             'company_sector'     => LavendelHygiene_Core::META_SECTOR,
             'phone'              => 'billing_phone',
 
@@ -415,6 +414,12 @@ class LavendelHygiene_Registration {
             if ( isset( $_POST[ $posted ] ) ) {
                 update_user_meta( $customer_id, $meta_key, sanitize_text_field( wp_unslash( $_POST[ $posted ] ) ) );
             }
+        }
+
+        if (isset($_POST['orgnr'])) {
+            $orgnr = preg_replace('/\D+/', '', (string) wp_unslash($_POST['orgnr']));
+
+            update_user_meta($customer_id, LavendelHygiene_Core::META_ORGNR, $orgnr);
         }
 
         $same_shipping = isset( $_POST['shipping_same_as_billing'] );
