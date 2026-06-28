@@ -32,25 +32,10 @@ final class LH_Ttx_Customers_Service {
         if (is_wp_error($res)) return $res;
         $created_id = (int) $res['id'];
 
-        $this->link_user_to_tripletex($user_id, $created_id);
-
         $delivery_id = (int) ($res['deliveryAddress']['id'] ?? 0);
-        if ($delivery_id > 0) {
-            lh_ttx_set_linked_delivery_address_id($user_id, $delivery_id);
-        } else {
-            LH_Ttx_Logger::error('Created Tripletex customer but deliveryAddress.id was missing', [
-                'user_id' => $user_id, 'ttx_id' => $created_id, 'response' => $res,
-            ]);
-        }
+        if ($delivery_id > 0) lh_ttx_set_linked_delivery_address_id($user_id, $delivery_id);
 
-        $contact_id = $this->ensure_and_get_contact_tripletex_id($user_id, $created_id);
-        if (is_wp_error($contact_id)) {
-            LH_Ttx_Logger::error('Created Tripletex customer but failed to create contact', [
-                'user_id' => $user_id, 'ttx_id'  => $created_id, 'error' => $contact_id->get_error_message(),
-                'data'    => $contact_id->get_error_data(),
-            ]);
-            return $contact_id;
-        }
+        $this->link_user_to_tripletex($user_id, $created_id);
 
         LH_Ttx_Logger::info('Created Tripletex customer and linked user', [
             'user_id'             => $user_id,
@@ -64,14 +49,14 @@ final class LH_Ttx_Customers_Service {
 
     /**
      * Sync user changes to Tripletex.
-     * Called from: on_profile_update, woocommerce_customer_save_address
-     * 
-     * Behavior:
-     * - Always ensures contact and delivery address refs.
-     * - For avdeling users, does NOT update the shared main Tripletex customer.
-     * - For non-avdeling users, updates main customer email/mobile if changed.
      *
-     * @param int $user_id
+     * Every linked user synchronizes:
+     * - their own Tripletex contact;
+     * - their own linked delivery address.
+     *
+     * Only a single-user, non-avdeling company may additionally update
+     * the main Tripletex customer fields.
+     *
      * @return true|\WP_Error
      */
     public function sync_user(int $user_id) {
@@ -90,31 +75,25 @@ final class LH_Ttx_Customers_Service {
         $delivery_id = $this->ensure_and_get_delivery_address_tripletex_id($user_id, $ttx_id);
         if (is_wp_error($delivery_id)) return $delivery_id;
 
-        /*
-        * Avdeling users share a Tripletex customer with other WP accounts.
-        * Do not let an avdeling profile overwrite the shared company-level
-        * email, phone, billing address, invoice settings, or default customer data.
-        */
-        if (lh_ttx_is_avdeling($user_id)) {
-            LH_Ttx_Logger::info('Synced avdeling refs to Tripletex', [
-                'user_id'             => $user_id,
-                'ttx_id'              => $ttx_id,
-                'contact_id'          => (int) $contact_id,
-                'delivery_address_id' => (int) $delivery_id,
-                'avdeling_name'       => lh_ttx_get_avdeling_name($user_id),
-            ]);
-
+        // Avdeling and multi-user company accounts must not modify shared customer-level fields.
+        if (!$this->user_can_sync_main_customer_fields($user_id, $ttx_id)) {
+            LH_Ttx_Logger::info('Synced Tripletex user refs without updating main customer', [
+                    'user_id'             => $user_id,
+                    'ttx_id'              => $ttx_id,
+                    'contact_id'          => (int) $contact_id,
+                    'delivery_address_id' => (int) $delivery_id,
+                    'is_avdeling'         => lh_ttx_is_avdeling($user_id),
+                    'active_user_count'   => $this->count_active_users_for_tripletex_customer($ttx_id),
+                ]);
             return true;
         }
 
-        // For normal accounts (not avdeling), we also sync email and phone
-
-        // get current tripletex customer data
+        // Single-user, non-avdeling company: synchronize the permitted company-level fields.
         $remote = ttx_customers_get($ttx_id);
         if (is_wp_error($remote)) return $remote;
 
-        $desired_customer = $this->map_user_to_customer_sync_payload($user_id);
-        $update = $this->diff_main_customer_payload($desired_customer, (array) $remote);
+        $desired = $this->map_user_to_customer_sync_payload($user_id);
+        $update = $this->diff_main_customer_payload($desired, (array) $remote);
         
         if (!$update) {
             LH_Ttx_Logger::info('Tripletex: no main customer changes to sync', [
@@ -129,7 +108,7 @@ final class LH_Ttx_Customers_Service {
         $res = ttx_customers_update($ttx_id, $update, null);
         if (is_wp_error($res)) return $res;
 
-        LH_Ttx_Logger::info('Synced non-avdeling customer to Tripletex', [
+        LH_Ttx_Logger::info('Synced single-user company to Tripletex', [
             'user_id'             => $user_id,
             'ttx_id'              => $ttx_id,
             'contact_id'          => (int) $contact_id,
@@ -417,18 +396,16 @@ final class LH_Ttx_Customers_Service {
     }
 
     /**
-     * Ensure a Tripletex delivery address exists for this WP user and return its Tripletex ID.
+     * Ensure a Tripletex delivery address exists for this WP user.
      *
-     * Non-avdeling:
-     * - Prefer saved delivery address ID.
-     * - Else use customer.deliveryAddress.id.
-     * - If customer has no default delivery address, create it through PUT /customer
-     *   so Tripletex sets it as the customer's default delivery address.
+     * Single-user, non-avdeling company:
+     * - may use/update the customer's default delivery address;
+     * - may create the customer's default delivery address if missing.
      *
-     * Avdeling:
-     * - Prefer saved delivery address ID.
-     * - Else search matching delivery address.
-     * - Else create via POST /deliveryAddress.
+     * Avdeling or multi-user company:
+     * - uses independent deliveryAddress objects;
+     * - may share an unchanged address ID with another user;
+     * - must not overwrite an address ID shared with another user.
      *
      * @return int|\WP_Error
      */
@@ -437,6 +414,8 @@ final class LH_Ttx_Customers_Service {
         if ($ttx_customer_id <= 0) return new WP_Error('ttx_customer_id_invalid', __('Ugyldig Tripletex-kunde-ID.', 'lh-ttx'));
 
         $desired = $this->map_user_to_delivery_address_payload($user_id, $ttx_customer_id);
+
+        $can_sync_main_customer = $this->user_can_sync_main_customer_fields($user_id, $ttx_customer_id);
 
         // 1. Try saved delivery address ID first.
         $saved_id = lh_ttx_get_linked_delivery_address_id($user_id);
@@ -452,22 +431,30 @@ final class LH_Ttx_Customers_Service {
             } else {
                 $remote = (array) $remote;
 
-                if ($this->delivery_address_belongs_to_customer($remote, $ttx_customer_id)) {
+                if (!$this->delivery_address_belongs_to_customer($remote, $ttx_customer_id)) {
+                    // Saved ID belongs to another customer
+                    lh_ttx_set_linked_delivery_address_id($user_id, 0);
+                } else {
                     $diff = $this->diff_delivery_address_payload($desired, $remote);
-                    if ($diff) {
-                        $res = ttx_delivery_address_update($saved_id, $diff);
-                        if (is_wp_error($res)) return $res;
+
+                    // No changes, no need to sync
+                    if (!$diff) return $saved_id;
+
+                    // Saved ID has changes we need to sync, check if any other users have same delivery ID
+                    if ($this->delivery_address_id_is_shared($user_id,$ttx_customer_id,$saved_id)) {
+                        return $this->find_or_create_independent_delivery_address($user_id,$ttx_customer_id,$desired);
                     }
+
+                    // ID only belongs to this user, update directly
+                    $res = ttx_delivery_address_update($saved_id, $diff);
+                    if (is_wp_error($res)) return $res;
                     return $saved_id;
                 }
-
-                // Saved ID belongs to another customer (unlikely but possible)
-                lh_ttx_set_linked_delivery_address_id($user_id, 0);
             }
         }
 
-        // 2. Non-avdeling: use or create customer's default delivery address.
-        if (!lh_ttx_is_avdeling($user_id)) {
+        // 2. Single user, non-avdeling: use or create customer's default delivery address.
+        if ($can_sync_main_customer) {
             $customer = ttx_customers_get($ttx_customer_id);
 
             if (is_wp_error($customer)) return $customer;
@@ -478,6 +465,7 @@ final class LH_Ttx_Customers_Service {
             if ($default_id > 0) {
                 $diff = $this->diff_delivery_address_payload($desired, $remote_default);
                 if ($diff) {
+                    // Need to update delivery address. Can update directly, as there is only a single user for this company
                     $res = ttx_delivery_address_update($default_id, $diff);
                     if (is_wp_error($res)) return $res;
                 }
@@ -487,10 +475,7 @@ final class LH_Ttx_Customers_Service {
 
             // No customer default delivery address exists.
             // Create through PUT /customer so this address becomes the default delivery address.
-            $created_default_id = $this->create_customer_default_delivery_address_and_get_id(
-                $ttx_customer_id,
-                $desired
-            );
+            $created_default_id = $this->create_customer_default_delivery_address_and_get_id($ttx_customer_id, $desired);
 
             if (is_wp_error($created_default_id)) return $created_default_id;
 
@@ -498,15 +483,36 @@ final class LH_Ttx_Customers_Service {
             return (int) $created_default_id;
         }
 
-        // 3. Avdeling: find matching address, else create independent deliveryAddress object.
-        $match_line = (string) ($desired['addressLine2'] ?? '');
-        if ($match_line === '') {
-            $match_line = (string) ($desired['addressLine1'] ?? '');
+        // 3. Avdeling or multi-user company with no saved ID: find or create deliveryAddress object
+        return $this->find_or_create_independent_delivery_address($user_id, $ttx_customer_id, $desired);
+    }
+
+    /**
+     * Find an existing matching delivery address or create a new independent deliveryAddress object.
+     *
+     * Used for:
+     * - avdeling users;
+     * - multi-user companies;
+     * - users moving away from a shared delivery-address ID.
+     *
+     * @return int|\WP_Error
+     */
+    private function find_or_create_independent_delivery_address(int $user_id, int $ttx_customer_id, array $desired) {
+        foreach (['addressLine1', 'postalCode', 'city'] as $field) {
+            if (empty($desired[$field])) {
+                return new WP_Error('ttx_delivery_address_incomplete',
+                    __('Leveringsadresse mangler påkrevd felt.', 'lh-ttx'),
+                    [ 'field' => $field, 'user_id' => $user_id, 'customer_id' => $ttx_customer_id, 'payload' => $desired]);
+            }
         }
 
+        // addressLine2 normally contains street and addressLine1 contains phone number
+        $match_line = (string) ($desired['addressLine2'] ?? '');
+        if ($match_line === '') $match_line = (string) ($desired['addressLine1'] ?? '');
+
         $match = ttx_delivery_address_get_without_id(
-            (string) ($desired['postalCode'] ?? ''),
-            (string) ($desired['city'] ?? ''), 
+            (string) ($desired['postalCode'] ?? ''), 
+            (string) ($desired['city'] ?? ''),
             $ttx_customer_id, $match_line);
 
         if (is_wp_error($match)) return $match;
@@ -515,35 +521,45 @@ final class LH_Ttx_Customers_Service {
             $matched_id = (int) ($match['id'] ?? 0);
 
             if ($matched_id <= 0) {
-                return new WP_Error(
-                    'ttx_delivery_address_id_missing',
+                return new WP_Error('ttx_delivery_address_id_missing',
                     __('Fant leveringsadresse uten gyldig ID.', 'lh-ttx'),
-                    ['match' => $match]
-                );
+                    ['match' => $match]);
             }
 
-            $remote = ttx_delivery_address_get(
-                $matched_id,
-                'id,addressLine1,addressLine2,postalCode,city,country(isoAlpha2Code),customerVendor(id)'
-            );
+            $remote = ttx_delivery_address_get($matched_id,
+                'id,addressLine1,addressLine2,postalCode,city,country(isoAlpha2Code),customerVendor(id)');
 
             if (is_wp_error($remote)) return $remote;
 
             $diff = $this->diff_delivery_address_payload($desired, (array) $remote);
             if ($diff) {
+                // Found an address based on street/postcode/city, but field differs, only modify if no other users use it
+                if ($this->delivery_address_id_is_shared($user_id, $ttx_customer_id, $matched_id)) {
+                    return $this->create_independent_delivery_address($user_id, $desired);
+                }
+
                 $res = ttx_delivery_address_update($matched_id, $diff);
                 if (is_wp_error($res)) return $res;
             }
+
             lh_ttx_set_linked_delivery_address_id($user_id, $matched_id);
             return $matched_id;
         }
 
-        // No match for avdeling: create a new /deliveryAddress object.
-        $created = ttx_delivery_address_create($desired);
+        // No match for desired delivery address, create new one
+        return $this->create_independent_delivery_address($user_id, $desired);
+    }
+
+    /**
+     * Create and link an independent Tripletex delivery address.
+     *
+     * @return int|\WP_Error
+     */
+    private function create_independent_delivery_address(int $user_id,array $payload) {
+        $created = ttx_delivery_address_create($payload);
         if (is_wp_error($created)) return $created;
 
         $created_id = (int) ($created['id'] ?? 0);
-
         if ($created_id <= 0) {
             return new WP_Error('ttx_delivery_address_create_missing_id',
                 __('Tripletex returnerte ikke leveringsadresse-ID.', 'lh-ttx'), ['response' => $created]);
@@ -764,5 +780,123 @@ final class LH_Ttx_Customers_Service {
         }
 
         return $arr;
+    }
+
+    /**
+     * Get all WordPress users linked to a Tripletex customer.
+     *
+     * @return int[]
+     */
+    private function get_user_ids_for_tripletex_customer(int $ttx_customer_id): array {
+        if ($ttx_customer_id <= 0) return [];
+
+        $query = new WP_User_Query([
+            'number'       => -1,
+            'fields'       => 'ID',
+            'meta_key'     => LH_TTX_META_TRIPLETEX_ID,
+            'meta_value'   => (string) $ttx_customer_id,
+            'meta_compare' => '=',
+        ]);
+
+        return array_values(array_map('intval', $query->get_results()));
+    }
+
+    /**
+     * Whether a WP user is an active/approved B2B customer.
+     */
+    private function user_is_active_customer(int $user_id): bool {
+        if ($user_id <= 0) return false;
+
+        $status = (string) get_user_meta($user_id, 'b2b_status', true);
+
+        if ($status === 'approved') return true;
+        if ($status === 'pending' || $status === 'denied') return false;
+
+        $user = get_userdata($user_id);
+        return $user && in_array('customer', (array) $user->roles, true);
+    }
+
+    /**
+     * Whether a user should be considered in pending/approved sync ownership.
+     *
+     * Denied users and unrelated accounts do not reserve company or delivery address ownership.
+     */
+    private function user_is_sync_candidate(int $user_id): bool {
+        if ($user_id <= 0) return false;
+
+        $status = (string) get_user_meta($user_id, 'b2b_status', true);
+        if ($status === 'denied') return false;
+        if ($status === 'pending' || $status === 'approved') return true;
+
+        $user = get_userdata($user_id);
+        if (!$user) return false;
+
+        $roles = (array) $user->roles;
+        return in_array('customer', $roles, true) || in_array('b2b_pending', $roles, true);
+    }
+
+
+    /**
+     * Count approved/active website users linked to the Tripletex customer.
+     */
+    private function count_active_users_for_tripletex_customer(int $ttx_customer_id): int {
+        $count = 0;
+        foreach ($this->get_user_ids_for_tripletex_customer($ttx_customer_id) as $user_id) {
+            if ($this->user_is_active_customer($user_id)) $count++;
+        }
+        return $count;
+    }
+
+    /**
+     * Count pending or approved users linked to the Tripletex customer.
+     *
+     * Used because saving a Tripletex ID for a pending user now performs
+     * an initial sync before approval.
+     */
+    private function count_sync_candidates_for_tripletex_customer(int $ttx_customer_id): int {
+        $count = 0;
+        foreach ($this->get_user_ids_for_tripletex_customer($ttx_customer_id) as $user_id) {
+            if ($this->user_is_sync_candidate($user_id)) $count++;
+        }
+        return $count;
+    }
+
+    /**
+     * Whether this user may update the main Tripletex customer.
+     *
+     * Rules:
+     * - avdeling users never update company-level fields;
+     * - an approved user may do so only when they are the only active user;
+     * - a pending first user may do so before approval only when there are no
+     *   active users and they are the sole pending/approved linked user.
+     */
+    private function user_can_sync_main_customer_fields(int $user_id, int $ttx_customer_id): bool {
+        if ($user_id <= 0 || $ttx_customer_id <= 0 || lh_ttx_is_avdeling($user_id)) return false;
+
+        $active_count = $this->count_active_users_for_tripletex_customer($ttx_customer_id);
+        if ($this->user_is_active_customer($user_id)) return $active_count === 1;
+
+        // Save ID synchronizes pending users. so only allow company sync for first and sole pending user of a new company
+        return $active_count === 0 && $this->user_is_sync_candidate($user_id)
+            && $this->count_sync_candidates_for_tripletex_customer($ttx_customer_id) === 1;
+    }
+
+    /**
+     * Whether another WP user links to the same Tripletex delivery-address ID.
+     *
+     * Pending users are included because Save ID performs synchronization before approval.
+     */
+    private function delivery_address_id_is_shared(int $user_id, int $ttx_customer_id, int $delivery_address_id): bool {
+        if ($user_id <= 0 || $ttx_customer_id <= 0 || $delivery_address_id <= 0) return false;
+
+        foreach ($this->get_user_ids_for_tripletex_customer($ttx_customer_id) as $other_user_id) {
+            if ($other_user_id === $user_id) continue;
+
+            if (!$this->user_is_sync_candidate($other_user_id)) continue;
+
+            $other_delivery_id = lh_ttx_get_linked_delivery_address_id($other_user_id);
+            if ($other_delivery_id === $delivery_address_id) return true;
+        }
+        return false;
     }
 }
