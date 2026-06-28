@@ -204,6 +204,12 @@ final class LH_Ttx_Orders_Service {
         
         $customer_note = trim((string) $order->get_customer_note());
 
+        $user_id      = get_post_meta( $order_id, '_customer_user', true );
+        $user         = new WP_User( $user_id );
+        $user_email   = trim((string) $user->email);
+        $first_name   = trim((string) $user->first_name);
+        $last_name    = trim((string) $user->last_name);
+
         $ship_first = trim((string) $order->get_shipping_first_name());
         $ship_last  = trim((string) $order->get_shipping_last_name());
 
@@ -211,8 +217,6 @@ final class LH_Ttx_Orders_Service {
         if ($ship_phone === '') {
             $ship_phone = trim((string) $order->get_billing_phone());
         }
-
-        $order_email = trim((string) $order->get_billing_email());
 
         $addr1   = (string) $order->get_shipping_address_1();
         $addr2   = (string) $order->get_shipping_address_2();
@@ -229,6 +233,13 @@ final class LH_Ttx_Orders_Service {
             $lines[] = $customer_note;
         }
 
+        $lines[] = '';
+        $lines[] = '=== Bestilt av ===';
+        $userParts = array_filter([$user_email, $first_name, $last_name], static function($v) {
+            return $v !== null && $v !== '';
+        });
+        $lines[] = count($userParts) ? implode(' ', $userParts) : '-';
+
         if ($user_id > 0 && lh_ttx_is_avdeling($user_id)) {
             $avdeling_name = lh_ttx_get_avdeling_name($user_id);
 
@@ -237,14 +248,12 @@ final class LH_Ttx_Orders_Service {
             $lines[] = $avdeling_name !== '' ? $avdeling_name : '-';
         }
 
+        $lines[] = '';
         $lines[] = '=== Kontaktperson Levering ===';
         $contactParts = array_filter([$ship_first, $ship_last, $ship_phone], static function($v) {
             return $v !== null && $v !== '';
         });
         $lines[] = count($contactParts) ? implode(' ', $contactParts) : '-';
-        if ($order_email !== '') {
-            $lines[] = $order_email;
-        }
 
         $lines[] = '';
         $lines[] = '=== Leverings Adresse ===';
