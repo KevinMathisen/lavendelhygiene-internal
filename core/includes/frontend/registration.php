@@ -622,9 +622,9 @@ class LavendelHygiene_Registration {
 
     /**
      * Generate username from the contact person's name.
-     * - Ola Nordmann        => ola.nordmann
-     * - Anne Marie Hansen   => anne-marie.hansen
-     * - Duplicate username  => ola.nordmann2.
+     * - Ola Nordmann        => ola-nordmann
+     * - Anne Marie Hansen   => anne-marie-hansen
+     * - Duplicate username  => ola-nordmann2.
      */
     public function filter_username_person( $generated_username, $email, $args ) {
         $first_name = isset($_POST['contact_first_name'])
@@ -640,7 +640,7 @@ class LavendelHygiene_Registration {
 
         if ($first_name === '' || $last_name === '') return $generated_username;
 
-        $base = sanitize_user($first_name . '.' . $last_name, true);
+        $base = sanitize_user($first_name . '-' . $last_name, true);
 
         if ($base === '') return $generated_username;
 
