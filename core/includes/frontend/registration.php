@@ -12,6 +12,9 @@ class LavendelHygiene_Registration {
 
         add_filter( 'woocommerce_new_customer_username', [ $this, 'filter_username_person' ], 10, 3 );
 
+        add_action('wp_ajax_nopriv_lavendelhygiene_check_orgnr', [ $this, 'ajax_check_orgnr' ]);
+        add_action('wp_ajax_lavendelhygiene_check_orgnr', [ $this, 'ajax_check_orgnr' ]);
+
         // Redirect wordpress registration to woocommerce my account
         add_action( 'login_form_register', [ $this, 'redirect_wp_registration' ] );
         add_filter( 'register_url', [ $this, 'filter_register_url' ] );
@@ -68,6 +71,13 @@ class LavendelHygiene_Registration {
 
         $posted_contact_first   = $posted( 'contact_first_name' );
         $posted_contact_last    = $posted( 'contact_last_name' );
+
+        $orgnr_ajax_config = [
+            'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
+            'nonce'          => wp_create_nonce( 'lavendelhygiene_check_orgnr' ),
+            'matchMessage'   => __( 'Dette organisasjonsnummeret er allerede registrert. Registreringen blir knyttet til eksisterende firma hvis opplysningene stemmer.', 'lavendelhygiene' ),
+            'invalidMessage' => __( 'Ugyldig organisasjonsnummer.', 'lavendelhygiene' ),
+        ];
         ?>
         <style>
             /* Layout helpers */
@@ -80,11 +90,21 @@ class LavendelHygiene_Registration {
             .woocommerce form.register .woocommerce-form-row { width: 100%; }
             /* Button spacing */
             .woocommerce form.register .woocommerce-Button { margin-top: 12px; }
+
+            /* orgnr */
+            .lavendelhygiene-orgnr-feedback { display: block; margin-top: 6px; font-size: 0.9em; line-height: 1.4; }
+            .lavendelhygiene-orgnr-feedback[hidden] { display: none; }
+            .lavendelhygiene-orgnr-feedback.is-match { color: #6b4f00; font-weight: 600; }
+            .lavendelhygiene-orgnr-feedback.is-invalid { color: #b32d2e; font-weight: 600; }
         </style>
         <script>
             document.addEventListener('DOMContentLoaded', function(){
                 var form = document.querySelector('form.register');
                 if(!form) return;
+
+                var orgnrConfig = <?php
+                    echo wp_json_encode($orgnr_ajax_config, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+                ?>;
                 var emailLabel = form.querySelector('label[for="reg_email"]');
                 if(emailLabel && /email/i.test(emailLabel.textContent)) emailLabel.textContent = 'E-post *';
                 var passLabel = form.querySelector('label[for="reg_password"]');
@@ -92,30 +112,30 @@ class LavendelHygiene_Registration {
 
                 var same = document.getElementById('shipping_same_as_billing');
                 var wrapper = document.getElementById('shipping_fields_wrapper');
-                if (!same || !wrapper) return;
+                if (same && wrapper) {
+                    var shippingIds = ['shipping_address_1','shipping_postcode','shipping_city','shipping_country'];
 
-                var shippingIds = ['shipping_address_1','shipping_postcode','shipping_city','shipping_country'];
-
-                function setShippingRequired(isRequired) {
-                    shippingIds.forEach(function(id){
-                        var el = document.getElementById(id);
-                        if (!el) return;
-                        if (isRequired) el.setAttribute('required', 'required');
-                        else el.removeAttribute('required');
-                    });
-                }
-                function updateShippingVisibility() {
-                    if (same.checked) {
-                        wrapper.style.display = 'none';
-                        setShippingRequired(false);
-                    } else {
-                        wrapper.style.display = '';
-                        setShippingRequired(true);
+                    function setShippingRequired(isRequired) {
+                        shippingIds.forEach(function(id){
+                            var el = document.getElementById(id);
+                            if (!el) return;
+                            if (isRequired) el.setAttribute('required', 'required');
+                            else el.removeAttribute('required');
+                        });
                     }
-                }
+                    function updateShippingVisibility() {
+                        if (same.checked) {
+                            wrapper.style.display = 'none';
+                            setShippingRequired(false);
+                        } else {
+                            wrapper.style.display = '';
+                            setShippingRequired(true);
+                        }
+                    }
 
-                updateShippingVisibility();
-                same.addEventListener('change', updateShippingVisibility);
+                    updateShippingVisibility();
+                    same.addEventListener('change', updateShippingVisibility);
+                }
 
                 // Avdeling
                 var isAvdeling = document.getElementById('lh_is_avdeling');
@@ -139,6 +159,102 @@ class LavendelHygiene_Registration {
                 if (isAvdeling) {
                     isAvdeling.addEventListener('change', updateAvdelingVisibility);
                 }
+
+                // Org number feedback
+                var orgnrInput = document.getElementById('reg_orgnr');
+                var orgnrFeedback = document.getElementById('lavendelhygiene-orgnr-feedback');
+
+                if (orgnrInput && orgnrFeedback) {
+                    var debounceTimer;
+
+                    function normalizeOrgnr(value) {
+                        return String(value || '').replace(/\D+/g, '');
+                    }
+
+                    function isValidOrgnr(value) {
+                        var digits = normalizeOrgnr(value);
+
+                        if (!/^\d{9}$/.test(digits)) return false;
+
+                        var weights = [3, 2, 7, 6, 5, 4, 3, 2];
+                        var sum = 0;
+                        for (var i = 0; i < 8; i++) {
+                            sum += Number(digits[i]) * weights[i];
+                        }
+                        var checkDigit = 11 - (sum % 11);
+                        if (checkDigit === 11) checkDigit = 0;
+                        if (checkDigit === 10) return false;
+                        return Number(digits[8]) === checkDigit;
+                    }
+
+                    function clearFeedback() {
+                        orgnrFeedback.textContent = '';
+                        orgnrFeedback.hidden = true;
+                        orgnrFeedback.className = 'lavendelhygiene-orgnr-feedback';
+                    }
+
+                    function showFeedback(message, className) {
+                        orgnrFeedback.textContent = message;
+                        orgnrFeedback.hidden = false;
+                        orgnrFeedback.className = 'lavendelhygiene-orgnr-feedback ' + className;
+                    }
+
+                    async function checkOrgnr(orgnr) {
+                        var body = new URLSearchParams({
+                            action: 'lavendelhygiene_check_orgnr',
+                            nonce: orgnrConfig.nonce,
+                            orgnr: orgnr
+                        });
+
+                        try {
+                            var response = await fetch(orgnrConfig.ajaxUrl, {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                                },
+                                body: body.toString()
+                            });
+
+                            if (!response.ok) return;
+
+                            var result = await response.json();
+
+                            if (normalizeOrgnr(orgnrInput.value) !== orgnr) return;
+
+                            if ( result.success && result.data && result.data.exists === true ) {
+                                showFeedback( orgnrConfig.matchMessage, 'is-match');
+                            } else {
+                                clearFeedback();
+                            }
+                        } catch (error) {
+                            if (normalizeOrgnr(orgnrInput.value) === orgnr) {
+                                clearFeedback();
+                            }
+                        }
+                    }
+
+                    function handleOrgnrInput() {
+                        window.clearTimeout(debounceTimer);
+                        clearFeedback();
+
+                        var orgnr = normalizeOrgnr(orgnrInput.value);
+                        if (orgnr.length < 9) return;
+
+                        if (!isValidOrgnr(orgnr)) {
+                            showFeedback( orgnrConfig.invalidMessage, 'is-invalid');
+                            return;
+                        }
+                        debounceTimer = window.setTimeout(function () {
+                            checkOrgnr(orgnr);
+                        }, 600);
+                    }
+
+                    orgnrInput.addEventListener('input', handleOrgnrInput);
+
+                    // handle prefilled value after failed form validation
+                    if (orgnrInput.value) handleOrgnrInput();
+                }
             });
         </script>
 
@@ -154,8 +270,9 @@ class LavendelHygiene_Registration {
             <div class="lavendelhygiene-two">
                 <p class="form-row">
                     <label for="reg_orgnr"><?php esc_html_e( 'Organisasjonsnummer', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
-                    <input type="text" class="input-text" name="orgnr" id="reg_orgnr" placeholder="9 siffer"
-                        value="<?php echo $posted( 'orgnr' ); ?>" required />
+                    <input type="text" class="input-text" name="orgnr" id="reg_orgnr" placeholder="9 siffer" inputmode="numeric" autocomplete="off"
+                        maxlength="11" aria-describedby="lavendelhygiene-orgnr-feedback" value="<?php echo $posted( 'orgnr' ); ?>" required />
+                    <span id="lavendelhygiene-orgnr-feedback" class="lavendelhygiene-orgnr-feedback" role="status" aria-live="polite" hidden></span>
                 </p>
                 <p class="form-row">
                     <label for="company_sector"><?php esc_html_e( 'Bransje/Næring', 'lavendelhygiene' ); ?> <span class="required">*</span></label>
@@ -307,6 +424,31 @@ class LavendelHygiene_Registration {
         <?php
     }
 
+    /**
+     * AJAX endpoint for live organisation-number feedback.
+     */
+    public function ajax_check_orgnr(): void {
+        check_ajax_referer( 'lavendelhygiene_check_orgnr', 'nonce' );
+
+        $orgnr_raw = isset( $_POST['orgnr'] ) ? (string) wp_unslash( $_POST['orgnr'] ) : '';
+
+        $orgnr = preg_replace( '/\D+/', '', $orgnr_raw );
+
+        if ( ! $this->is_valid_no_orgnr( $orgnr ) ) {
+            wp_send_json_success( [ 'valid'  => false, 'exists' => false ] );
+        }
+
+        $existing_users = get_users( [
+            'fields'       => 'ID',
+            'number'       => 1,
+            'meta_key'     => LavendelHygiene_Core::META_ORGNR,
+            'meta_value'   => $orgnr,
+            'meta_compare' => '=',
+        ] );
+
+        wp_send_json_success( [ 'valid'  => true, 'exists' => ! empty( $existing_users ) ] );
+    }
+
     public function validate_register_fields( $errors, $username, $email ) {
         $same_shipping = isset( $_POST['shipping_same_as_billing'] );
 
@@ -351,17 +493,7 @@ class LavendelHygiene_Registration {
             $orgnr_digits = preg_replace( '/\D+/', '', $orgnr_raw );
 
             if ( ! $this->is_valid_no_orgnr( $orgnr_digits ) ) {
-                $errors->add( 'orgnr_invalid', __( 'Ugyldig organisasjonsnummer.', 'lavendelhygiene' ) );
-            } else {
-                // prevent duplicate org numbers
-                $existing = get_users( [
-                    'fields'     => 'ids',
-                    'number'     => 1,
-                    'meta_key'   => LavendelHygiene_Core::META_ORGNR,
-                    'meta_value' => $orgnr_digits,
-                ] );
-
-                // TODO: just inform user that there are miltiple accounts connected to this orgnummer
+                $errors->add('orgnr_invalid', __( 'Ugyldig organisasjonsnummer.', 'lavendelhygiene' ));
             }
         }
 
