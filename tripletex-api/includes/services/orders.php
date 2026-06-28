@@ -26,6 +26,13 @@ final class LH_Ttx_Orders_Service {
         $order = wc_get_order($order_id);
         if (!$order) return new WP_Error('order_missing', __('Finner ikke ordre.', 'lh-ttx'));
 
+        $existing_ttx_order_id = (int) $order->get_meta(LH_TTX_META_TTX_ORDER_ID, true);
+        if ($existing_ttx_order_id > 0) {
+            LH_Ttx_Logger::info('Skipped duplicate Tripletex order creation',
+                ['order_id' => $order_id, 'ttx_order_id' => $existing_ttx_order_id,]);
+            return $existing_ttx_order_id;
+        }
+
         $user_id = (int) $order->get_user_id();
 
         if ($user_id <= 0) {
@@ -126,7 +133,6 @@ final class LH_Ttx_Orders_Service {
         int $ttx_contact_id,
         int $ttx_delivery_address_id
     ): array {
-        $currency = $order->get_currency();
         $order_dt = (new DateTimeImmutable('@' . $order->get_date_created()->getTimestamp()))->format('Y-m-d');
 
         $payload = [
@@ -189,26 +195,14 @@ final class LH_Ttx_Orders_Service {
         return $payload;
     }
 
-    private function compose_invoice_comment(\WC_Order $order): string {
-        // Comment should contain plain text in following format:
-        // ORDER FRA NETTBUTIKK, SE INFO UNDER
-        //  <order_comments>
-        // 
-        // KONTAKTPERSON LEVERING:
-        // <shipping_first_name> <shipping_last_name> <shipping_phone>
-        // <order_email>
-        //
-        // LEVERINGS ADRESSE:
-        // <shipping_address_1> <shipping_address_2 (optional)>
-        // <shipping_postcode> <shipping_city> <shipping_country> 
-        
+    private function compose_invoice_comment(\WC_Order $order): string {        
         $customer_note = trim((string) $order->get_customer_note());
 
-        $user_id      = get_post_meta( $order_id, '_customer_user', true );
-        $user         = new WP_User( $user_id );
-        $user_email   = trim((string) $user->email);
-        $first_name   = trim((string) $user->first_name);
-        $last_name    = trim((string) $user->last_name);
+        $user_id = (int) $order->get_user_id();
+        $user = $user_id > 0 ? get_userdata($user_id) : false;
+        $user_email = trim((string) $order->get_billing_email());
+        $first_name = $user ? trim((string) get_user_meta($user_id, 'first_name', true)) : '';
+        $last_name = $user ? trim((string) get_user_meta($user_id, 'last_name', true)) : '';
 
         $ship_first = trim((string) $order->get_shipping_first_name());
         $ship_last  = trim((string) $order->get_shipping_last_name());
