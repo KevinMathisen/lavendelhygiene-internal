@@ -10,7 +10,7 @@ class LavendelHygiene_Registration {
         add_action( 'woocommerce_created_customer', [ $this, 'save_register_fields' ], 10, 3 );
         add_action( 'user_register', [ $this, 'set_pending_role' ], 20 );
 
-        add_filter( 'woocommerce_new_customer_username', [ $this, 'filter_username_company' ], 10, 3 );
+        add_filter( 'woocommerce_new_customer_username', [ $this, 'filter_username_person' ], 10, 3 );
 
         // Redirect wordpress registration to woocommerce my account
         add_action( 'login_form_register', [ $this, 'redirect_wp_registration' ] );
@@ -488,23 +488,55 @@ class LavendelHygiene_Registration {
         }
     }
 
-    public function filter_username_company( $generated_username, $email, $args ) {
-        if ( empty( $_POST['company_name'] ) ) { return $generated_username; }
+    /**
+     * Generate username from the contact person's name.
+     * - Ola Nordmann        => ola.nordmann
+     * - Anne Marie Hansen   => anne-marie.hansen
+     * - Duplicate username  => ola.nordmann2.
+     */
+    public function filter_username_person( $generated_username, $email, $args ) {
+        $first_name = isset($_POST['contact_first_name'])
+            ? sanitize_text_field(wp_unslash($_POST['contact_first_name'])) : '';
 
-        $base = sanitize_user( strtolower( remove_accents( wp_unslash( $_POST['company_name'] ) ) ), true );
-        // Replace spaces and consecutive non-allowed chars with single hyphen
-        $base = preg_replace( '/[^a-z0-9]+/', '-', $base );
-        $base = trim( $base, '-' );
-        if ( $base === '' ) {
-            return $generated_username;
-        }
+        $last_name = isset($_POST['contact_last_name'])
+            ? sanitize_text_field(wp_unslash($_POST['contact_last_name'])) : '';
 
-        // ensure username is unique, if not fall back
-        if ( username_exists( $base ) ) {
-            return $generated_username;
-        }
+        if ($first_name === '' || $last_name === '') return $generated_username;
 
-        return $base;
+        $first_name = $this->username_name_part($first_name);
+        $last_name = $this->username_name_part($last_name);
+
+        if ($first_name === '' || $last_name === '') return $generated_username;
+
+        $base = sanitize_user($first_name . '.' . $last_name, true);
+
+        if ($base === '') return $generated_username;
+
+        return $this->unique_username($base);
+    }
+
+    /**
+     * Normalize a persons name for username
+     */
+    private function username_name_part(string $value): string {
+        $value = strtolower(remove_accents($value));
+        $value = preg_replace('/[^a-z0-9]+/', '-', $value);
+        return trim((string) $value, '-');
+    }
+
+    /**
+     * Return the base username or append the smallest available number.
+     */
+    private function unique_username(string $base): string {
+        if (!username_exists($base)) return $base;
+
+        $suffix = 2;
+        do {
+            $candidate = $base . $suffix;
+            $suffix++;
+        } while (username_exists($candidate));
+
+        return $candidate;
     }
 
     /**
