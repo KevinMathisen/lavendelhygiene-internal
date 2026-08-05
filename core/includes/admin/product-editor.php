@@ -9,6 +9,9 @@ class LavendelHygiene_ProductMetaEditor {
     const META_DOCS_JSON      = '_docs';
     const META_TRIPLETEX_PRODUCT_ID = '_tripletex_product_id';
 
+    const META_CATALOG_ONLY = '_lavh_catalog_only';
+    const META_INSTALLATION = '_lavh_installation_product';
+
     // Temporary unavailable (parent + variation)
     const META_TEMP_UNAVAILABLE         = '_lavh_temp_unavailable';
     const META_TEMP_UNAVAILABLE_MESSAGE = '_lavh_temp_unavailable_message';
@@ -49,6 +52,9 @@ class LavendelHygiene_ProductMetaEditor {
         $product_id = (int) $post->ID;
 
         $vol_flag = (string) get_post_meta( $product_id, self::META_VOLUME_NOTICE, true );
+        $catalog_only = (get_post_meta($product_id, self::META_CATALOG_ONLY, true) === 'yes');
+        $installation = (get_post_meta($product_id, self::META_INSTALLATION, true) === 'yes');
+
         $docs_raw = (string) get_post_meta( $product_id, self::META_DOCS_JSON, true );
         $ttx_pid  = (int) get_post_meta( $product_id, self::META_TRIPLETEX_PRODUCT_ID, true );
 
@@ -88,6 +94,23 @@ class LavendelHygiene_ProductMetaEditor {
                     'cbvalue'     => 'yes',
                     'desc_tip'    => false,
                 ] );
+
+                woocommerce_wp_checkbox( [
+                    'id'          => self::META_CATALOG_ONLY,
+                    'label'       => __( 'Catalog only', 'lavendelhygiene' ),
+                    'description' => __( 'Hides the price and prevents direct purchase.', 'lavendelhygiene' ),
+                    'value'       => $catalog_only ? 'yes' : 'no',
+                    'cbvalue'     => 'yes',
+                ] );
+
+                woocommerce_wp_checkbox( [
+                    'id'          => self::META_INSTALLATION,
+                    'label'       => __( 'Installation product', 'lavendelhygiene' ),
+                    'description' => __( 'Treats the product as catalog-only and displays the installation notice.', 'lavendelhygiene' ),
+                    'value'       => $installation ? 'yes' : 'no',
+                    'cbvalue'     => 'yes',
+                ] );
+
 
                 // Only allow parent-level block for non-variable products.
                 if ( ! $is_variable_parent ) {
@@ -202,6 +225,15 @@ class LavendelHygiene_ProductMetaEditor {
         // volume notice checkbox (exactly yes/no)
         $vol = isset( $_POST[ self::META_VOLUME_NOTICE ] ) ? 'yes' : 'no';
         $product->update_meta_data( self::META_VOLUME_NOTICE, $vol );
+
+        // catalog-only and installation product
+        $installation = isset( $_POST[ self::META_INSTALLATION ] ) ? 'yes' : 'no';
+        $catalog_only = isset( $_POST[ self::META_CATALOG_ONLY ] ) ? 'yes' : 'no';
+
+        // Installation owns the classification, avoid storing both manual properties
+        if ( $installation === 'yes' ) { $catalog_only = 'no'; }
+        $product->update_meta_data( self::META_INSTALLATION, $installation);
+        $product->update_meta_data( self::META_CATALOG_ONLY, $catalog_only );
 
         // temporary unavailable (parent)
         if ( ! $product->is_type( 'variable' ) ) {

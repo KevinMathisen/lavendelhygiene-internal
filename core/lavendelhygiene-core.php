@@ -3,7 +3,7 @@
  * Plugin Name: Lavendel Hygiene Core
  * Description: B2B registration + approval + gating for WooCommerce (pending/approved flow, org.nr capture, emails, checkout restrictions).
  * Author: Kevin Nikolai Mathisen
- * Version: 2.0.0
+ * Version: 2.1.0
  * Requires Plugins: woocommerce
  */
 
@@ -18,6 +18,7 @@ require_once LH_CORE_PLUGIN_DIR . '/includes/admin/admin-applications.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/admin/admin-messages.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/admin/product-editor.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/admin/profile-fields.php';
+require_once LH_CORE_PLUGIN_DIR . '/includes/admin/admin-product-properties.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/frontend/gating.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/notifications.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/frontend/tweak-user-settings.php';
@@ -26,7 +27,7 @@ require_once LH_CORE_PLUGIN_DIR . '/includes/frontend/feedback.php';
 
 
 final class LavendelHygiene_Core {
-    const VERSION              = '2.0.0';
+    const VERSION              = '2.1.0';
 
     const PENDING_ROLE         = 'b2b_pending';
 
@@ -52,6 +53,7 @@ final class LavendelHygiene_Core {
         new LavendelHygiene_AdminMessages();
         new LavendelHygiene_ProductMetaEditor();
         new LavendelHygiene_ProfileFields();
+        new LavendelHygiene_AdminProductProperties();
         new LavendelHygiene_Gating();
         new LavendelHygiene_Notifications();
         new LavendelHygiene_TweakUserSettings();

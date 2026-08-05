@@ -51,11 +51,17 @@ class LavendelHygiene_Gating {
         $product = $this->normalize_to_parent_product( $product );
         if ( ! $product ) return false;
 
-        $sku = (string) $product->get_sku();
-        $catalog_only_skus = array( '100', '108', '1000', '1001', '1002', '700006590', '6827', 'MDS100EU', 'SNG-32CS-EU-A', '700005212' );
-        if ( $sku !== '' && in_array( $sku, $catalog_only_skus, true ) ) {
-            return true;
-        }
+        $product_id = $product->get_id();
+
+        $manual_catalog_only = (
+            get_post_meta($product_id, LavendelHygiene_ProductMetaEditor::META_CATALOG_ONLY, true) === 'yes'
+        );
+        if ( $manual_catalog_only ) return true;
+
+        $installation = (
+            get_post_meta($product_id, LavendelHygiene_ProductMetaEditor::META_INSTALLATION, true) === 'yes'
+        );
+        if ( $installation ) return true;
 
         // Only simple/non-variable products are blocked by zero price at parent level.
         if ( ! $product->is_type( 'variable' ) ) {
@@ -81,10 +87,9 @@ class LavendelHygiene_Gating {
         $product = $this->normalize_to_parent_product( $product );
         if ( ! $product ) return false;
 
-        $sku = (string) $product->get_sku();
-        $installation_skus = array( '100', '108', '1000', '1001', '1002' );
-
-        return $sku !== '' && in_array( $sku, $installation_skus, true );
+        return (
+            get_post_meta($product->get_id(), LavendelHygiene_ProductMetaEditor::META_INSTALLATION, true) === 'yes'
+        );
     }
 
     private function is_temporarily_unavailable( $product ) {
