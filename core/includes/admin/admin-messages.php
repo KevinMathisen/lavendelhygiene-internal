@@ -12,14 +12,14 @@ class LavendelHygiene_AdminMessages {
             'woocommerce',
             __('LH: Administrer meldinger', 'lavendelhygiene'),
             __('LH: Administrer meldinger', 'lavendelhygiene'),
-            'manage_options',
+            'manage_woocommerce',
             'lavendelhygiene-messages',
             [$this, 'render_page']
         );
     }
 
     public function render_page() {
-        if ( ! current_user_can( 'manage_options' ) ) wp_die( __( 'No permission.', 'lavendelhygiene' ) );
+        if ( ! current_user_can( 'manage_woocommerce' ) ) wp_die( __( 'No permission.', 'lavendelhygiene' ) );
 
         $messages = LavendelHygiene_Messages::all();
         ?>
@@ -74,7 +74,7 @@ class LavendelHygiene_AdminMessages {
     }
 
     public function handle_save() {
-        if ( ! current_user_can( 'manage_options' ) ) {
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
             wp_die( __( 'No permission.', 'lavendelhygiene' ) );
         }
 
