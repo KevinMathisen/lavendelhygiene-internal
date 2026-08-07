@@ -188,6 +188,23 @@ final class LH_Ttx_Webhooks {
                 'reason' => 'status_not_ready_for_invoicing','status' => $status], 200);
         }
 
+        // Before updating woocommerce orders, generate logisitcs/shipping forms
+        LH_Ttx_Logger::info('Starting logistics document generation', [
+            'ttx_order_id'   => $ttx_order_id,
+            'subscriptionId' => $subscriptionId,
+            'requestId'      => $requestId,
+        ]);
+
+        try {
+            (new LH_Ttx_Logistics())->process_order($ttx_order_id);
+        } catch (Throwable $e) {
+            LH_Ttx_Logger::error('Unexpected logistics processing exception', [
+                'ttx_order_id' => $ttx_order_id,
+                'message'      => $e->getMessage(),
+            ]);
+        }
+
+        // Check if we should update status of local order
         $wc_order_id = $this->find_wc_order_by_tripletex_order_id($ttx_order_id);
 
         if ($wc_order_id <= 0) {

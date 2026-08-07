@@ -137,10 +137,24 @@ add_action('plugins_loaded', function () {
         return;
     }
 
+    $autoload = LH_TTX_PLUGIN_DIR . 'vendor/autoload.php';
+    if (is_readable($autoload)) {
+        require_once $autoload;
+    } else {
+        LH_Ttx_Logger::error( 'Composer autoload file missing; '
+            . 'logistics documents disabled.', [ 'path' => $autoload ] );
+    }
+
     require_once LH_TTX_PLUGIN_DIR . 'includes/api.php';
     require_once LH_TTX_PLUGIN_DIR . 'includes/helpers.php';
     require_once LH_TTX_PLUGIN_DIR . 'includes/services.php';
     require_once LH_TTX_PLUGIN_DIR . 'includes/settings-page.php';
+
+    require_once LH_TTX_PLUGIN_DIR . 'includes/adr-mapping.php';
+    require_once LH_TTX_PLUGIN_DIR . 'includes/spreadsheet-generator.php';
+    require_once LH_TTX_PLUGIN_DIR . 'includes/logistics.php';
+    require_once LH_TTX_PLUGIN_DIR . 'includes/logistics-settings.php';
+
     require_once LH_TTX_PLUGIN_DIR . 'includes/webhooks.php';
     require_once LH_TTX_PLUGIN_DIR . 'includes/pricing.php';
 
@@ -154,6 +168,7 @@ add_action('plugins_loaded', function () {
     // Admin UI only
     if (is_admin()) {
         (new LH_Ttx_Settings_Page())->init();
+        (new LH_Ttx_Logistics_Settings())->init();
     }
 
     // "Create in Tripletex" action (admin-post)
