@@ -746,6 +746,34 @@ function ttx_orders_create(array $payload) {
     return $id;
 }
 
+function ttx_orders_get(int $order_id, ?string $fields = null) {
+    if ($order_id <= 0) {
+        return ttx_error('ttx_order_id_invalid',__('Ugyldig Tripletex ordre-ID.', 'lh-ttx'));
+    }
+
+    $fields ??= implode(',', [
+        'id',
+        'number',
+        'orderDate',
+        'deliveryDate',
+        'customer(id,name,organizationNumber)',
+        'receiverEmail',
+        'deliveryAddress(id,addressLine1,addressLine2,postalCode,city,country(isoAlpha2Code))',
+        'deliveryComment',
+        'orderLines(' .
+            'id,' .
+            'product(id,number,name,weight,weightUnit,hsnCode),' .
+            'count,' .
+            'unitCostCurrency,' .
+            'unitPriceExcludingVatCurrency' .
+        ')',
+    ]);
+
+    return ttx_get("/order/{$order_id}", [
+        'fields' => $fields,
+    ]);
+}
+
 /** -------------------------------------------------------------------------
  * DiscountPolicy
  * -------------------------------------------------------------------------- */
