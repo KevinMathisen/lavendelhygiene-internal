@@ -16,7 +16,7 @@ final class LH_Ttx_Logistics_Settings {
 
     public function register_page(): void {
         add_submenu_page(
-            'lh-ttx-settings',
+            'woocommerce',
             __('Logistikkdokumenter', 'lh-ttx'),
             __('Logistikkdokumenter', 'lh-ttx'),
             self::CAPABILITY,
