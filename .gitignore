@@ -1,1 +1,4 @@
 scp-plugin-to-server.sh
+vendor/
+composer.json
+composer.lock
