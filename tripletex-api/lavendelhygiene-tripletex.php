@@ -150,10 +150,10 @@ add_action('plugins_loaded', function () {
     require_once LH_TTX_PLUGIN_DIR . 'includes/services.php';
     require_once LH_TTX_PLUGIN_DIR . 'includes/settings-page.php';
 
-    require_once LH_TTX_PLUGIN_DIR . 'includes/adr-mapping.php';
-    require_once LH_TTX_PLUGIN_DIR . 'includes/spreadsheet-generator.php';
-    require_once LH_TTX_PLUGIN_DIR . 'includes/logistics.php';
-    require_once LH_TTX_PLUGIN_DIR . 'includes/logistics-settings.php';
+    require_once LH_TTX_PLUGIN_DIR . 'includes/logistics/adr-mapping.php';
+    require_once LH_TTX_PLUGIN_DIR . 'includes/logistics/spreadsheet-generator.php';
+    require_once LH_TTX_PLUGIN_DIR . 'includes/logistics/logistics-forms.php';
+    require_once LH_TTX_PLUGIN_DIR . 'includes/logistics/logistics-forms-settings.php';
 
     require_once LH_TTX_PLUGIN_DIR . 'includes/webhooks.php';
     require_once LH_TTX_PLUGIN_DIR . 'includes/pricing.php';
