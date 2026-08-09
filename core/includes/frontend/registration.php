@@ -75,7 +75,7 @@ class LavendelHygiene_Registration {
         $orgnr_ajax_config = [
             'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
             'nonce'          => wp_create_nonce( 'lavendelhygiene_check_orgnr' ),
-            'matchMessage'   => __( 'Dette organisasjonsnummeret er allerede registrert. Registreringen blir knyttet til eksisterende firma hvis opplysningene stemmer.', 'lavendelhygiene' ),
+            'matchMessage'   => __( 'Dette organisasjonsnummeret er allerede registrert. Registreringen din blir knyttet til eksisterende firma hvis opplysningene stemmer.', 'lavendelhygiene' ),
             'invalidMessage' => __( 'Ugyldig organisasjonsnummer.', 'lavendelhygiene' ),
         ];
         ?>
