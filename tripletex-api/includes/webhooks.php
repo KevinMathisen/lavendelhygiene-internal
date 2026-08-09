@@ -151,7 +151,37 @@ final class LH_Ttx_Webhooks {
     }
 
     private function handle_order_event(string $event, int $ttx_order_id, ?array $value, int $subscriptionId, ?string $requestId) {
-        // We only care about order.update for now
+        if ($value === null) {
+            LH_Ttx_Logger::info('Webhook order.create/update received without value payload', [
+                'event'          => $event,
+                'ttx_order_id'   => $ttx_order_id,
+                'subscriptionId' => $subscriptionId,
+            ]);
+            return new \WP_REST_Response(['ok' => true, 'ignored' => true, 'reason' => 'missing_value'], 200);
+        }
+
+        // Perform document creation at new orders
+        if ($event === 'order.create') {
+            // Before updating woocommerce orders, generate logisitcs/shipping forms
+            LH_Ttx_Logger::info('Starting logistics document generation', [
+                'ttx_order_id'   => $ttx_order_id,
+                'subscriptionId' => $subscriptionId,
+                'requestId'      => $requestId,
+            ]);
+
+            try {
+                (new LH_Ttx_Logistics())->process_order($ttx_order_id);
+            } catch (Throwable $e) {
+                LH_Ttx_Logger::error('Unexpected logistics processing exception', [
+                    'ttx_order_id' => $ttx_order_id,
+                    'message'      => $e->getMessage(),
+                ]);
+            }
+
+            return new \WP_REST_Response(['ok' => true, 'handled' => true], 200);
+        }
+        
+        // We only care about order.update for syncing
         if ($event !== 'order.update') {
             LH_Ttx_Logger::info('Webhook order event ignored (unhandled verb)', [
                 'event'          => $event,
@@ -160,17 +190,6 @@ final class LH_Ttx_Webhooks {
             ]);
 
             return new \WP_REST_Response(['ok' => true, 'ignored' => true], 200);
-        }
-
-        if ($value === null) {
-            LH_Ttx_Logger::info('Webhook order.update received without value payload', [
-                'event'          => $event,
-                'ttx_order_id'   => $ttx_order_id,
-                'subscriptionId' => $subscriptionId,
-            ]);
-
-            // still 200 so Tripletex does not disable the subscription
-            return new \WP_REST_Response(['ok' => true, 'ignored' => true, 'reason' => 'missing_value'], 200);
         }
 
         $rawStatus = $value['status'] ?? '';
@@ -186,22 +205,6 @@ final class LH_Ttx_Webhooks {
 
             return new \WP_REST_Response(['ok' => true,'ignored' => true,
                 'reason' => 'status_not_ready_for_invoicing','status' => $status], 200);
-        }
-
-        // Before updating woocommerce orders, generate logisitcs/shipping forms
-        LH_Ttx_Logger::info('Starting logistics document generation', [
-            'ttx_order_id'   => $ttx_order_id,
-            'subscriptionId' => $subscriptionId,
-            'requestId'      => $requestId,
-        ]);
-
-        try {
-            (new LH_Ttx_Logistics())->process_order($ttx_order_id);
-        } catch (Throwable $e) {
-            LH_Ttx_Logger::error('Unexpected logistics processing exception', [
-                'ttx_order_id' => $ttx_order_id,
-                'message'      => $e->getMessage(),
-            ]);
         }
 
         // Check if we should update status of local order
