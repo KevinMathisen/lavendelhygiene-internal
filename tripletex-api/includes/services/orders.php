@@ -169,6 +169,11 @@ final class LH_Ttx_Orders_Service {
                 if (!is_wp_error($ttx_product_id) && (int) $ttx_product_id > 0) {
                     $line['product'] = ['id' => (int) $ttx_product_id];
 
+                    // TEMP workaround for ttx bug: explicitly specify price for 700007627
+                    if ($product->get_sku() === '700007627' && $qty > 0) {
+                        $line['unitPriceExcludingVatCurrency'] = (float) $item->get_subtotal() / $qty;
+                    }
+
                     if ($user_id > 0) {
                         $discount = $discSvc->get_discount_for_product($product, $user_id);
 
