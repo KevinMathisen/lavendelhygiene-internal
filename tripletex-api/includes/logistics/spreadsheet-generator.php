@@ -296,7 +296,14 @@ final class LH_Ttx_Spreadsheet_Generator {
     }
 
     private static function save(Spreadsheet $spreadsheet, string $filename): string {
-        $placeholder = wp_tempnam($filename);
+        $prefix = sanitize_file_name(pathinfo($filename, PATHINFO_FILENAME));
+        if ($prefix === '') {
+            $prefix = 'lh_ttx_';
+        } else {
+            $prefix .= '-';
+        }
+
+        $placeholder = tempnam(sys_get_temp_dir(), $prefix);
         if (!$placeholder) throw new RuntimeException('Could not create a temporary file.');
         $path = $placeholder . '.xlsx';
         @unlink($placeholder);
