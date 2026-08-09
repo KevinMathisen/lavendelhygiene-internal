@@ -96,19 +96,20 @@ final class LH_Ttx_ADR_Mapping {
                 (string) ($product['number'] ?? '')
             );
 
-            if (
-                $sku === ''
-                || !isset($mapping[$sku])
-                || !is_array($mapping[$sku])
-            ) {
+            if ($sku === '' || !isset($mapping[$sku]) || !is_array($mapping[$sku])) {
                 continue;
             }
+
+            $mapped_row = $mapping[$sku];
+
+            $psn = trim((string) ($mapped_row['psn'] ?? ''));
+            if (mb_strtolower($psn, 'UTF-8') === 'ikke relevant') continue;
 
             $matches[] = [
                 'sku'        => $sku,
                 'order_line' => $order_line,
                 'product'    => $product,
-                'mapping'    => $mapping[$sku],
+                'mapping'    => $mapped_row,
             ];
         }
 

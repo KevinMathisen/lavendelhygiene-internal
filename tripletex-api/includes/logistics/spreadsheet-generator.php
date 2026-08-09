@@ -27,10 +27,7 @@ final class LH_Ttx_Spreadsheet_Generator {
                 $sku = trim((string)($product['number'] ?? ''));
                 $name = trim((string)($product['name'] ?? ''));
                 $count = self::number($line['count'] ?? 0);
-                $unit_weight_kg = self::weight_to_kg(
-                    self::number($product['weight'] ?? 0),
-                    (string)($product['weightUnit'] ?? '')
-                );
+                $unit_weight_kg = self::product_weight_kg($product);
                 $total_weight_kg = $unit_weight_kg * $count;
                 $unit_price = self::number($line['unitPriceExcludingVatCurrency'] ?? 0);
                 $hs_code = self::hs_code((string)($product['hsnCode'] ?? ''));
@@ -107,8 +104,16 @@ final class LH_Ttx_Spreadsheet_Generator {
                 $product = self::product($line);
                 $sku = trim((string)($product['number'] ?? ''));
                 $count = self::number($line['count'] ?? 0);
-                $unit_weight = self::weight_to_kg(self::number($product['weight'] ?? 0), (string)($product['weightUnit'] ?? ''));
+                $unit_weight = self::product_weight_kg($product);
                 $unit_price = self::number($line['unitPriceExcludingVatCurrency'] ?? 0);
+
+                $hs_code = self::hs_code((string)($product['hsnCode'] ?? ''));
+                if ($hs_code === '' && $sku !== '') {
+                    $mapped = LH_Ttx_ADR_Mapping::get_by_sku($sku);
+                    if (is_array($mapped)) {
+                        $hs_code = self::hs_code((string)($mapped['hs_code'] ?? ''));
+                    }
+                }
 
                 self::text($sheet, "A{$r}", $sku);
                 self::text($sheet, "B{$r}", (string)($product['name'] ?? ''));
@@ -117,7 +122,7 @@ final class LH_Ttx_Spreadsheet_Generator {
                 self::numeric($sheet, "E{$r}", $unit_weight * $count);
                 self::numeric($sheet, "F{$r}", $unit_price);
                 self::numeric($sheet, "G{$r}", $unit_price * $count);
-                self::text($sheet, "H{$r}", self::hs_code((string)($product['hsnCode'] ?? '')));
+                self::text($sheet, "H{$r}", $hs_code);
                 self::text($sheet, "I{$r}", LH_Ttx_ADR_Mapping::get_by_sku($sku) ? 'Ja' : 'Nei');
                 $r++;
             }
@@ -157,10 +162,7 @@ final class LH_Ttx_Spreadsheet_Generator {
 
                 $count = self::number($line['count'] ?? 0);
 
-                $unit_weight_kg = self::weight_to_kg(
-                    self::number($product['weight'] ?? 0),
-                    (string) ($product['weightUnit'] ?? '')
-                );
+                $unit_weight_kg = self::product_weight_kg($product);
 
                 $line_weight_kg = $unit_weight_kg * $count;
                 $package_type   = self::detect_package_type( (string) ($product['name'] ?? '') );
@@ -241,6 +243,36 @@ final class LH_Ttx_Spreadsheet_Generator {
         return is_numeric($value) ? (float)$value : 0.0;
     }
 
+    private static function product_weight_kg(array $product): float {
+        $weight = self::number($product['weight'] ?? 0);
+        $unit = (string) ($product['weightUnit'] ?? '');
+
+        if ($weight > 0) {
+            return self::weight_to_kg($weight, $unit);
+        }
+
+        $name = trim((string) ($product['name'] ?? ''));
+        if ($name === '') return 0.0;
+
+        $name_lower = mb_strtolower($name, 'UTF-8');
+        if (str_contains($name_lower, 'fumagri') || str_contains($name_lower, 'fumispore')) {
+            return 0.0;
+        }
+
+        if (preg_match('/\b(\d+(?:[.,]\d+)?)\s*(g|kg)\b/i', $name, $matches) !== 1) {
+            return 0.0;
+        }
+
+        $amount = (float) str_replace(',', '.', $matches[1]);
+        $unit = strtolower($matches[2]);
+
+        return match ($unit) {
+            'g' => $amount / 1000,
+            'kg' => $amount,
+            default => 0.0,
+        };
+    }
+
     private static function weight_to_kg(float $weight, string $unit): float {
         $unit = strtoupper(trim($unit));
         return match ($unit) {
@@ -264,10 +296,6 @@ final class LH_Ttx_Spreadsheet_Generator {
     }
 
     private static function save(Spreadsheet $spreadsheet, string $filename): string {
-        if (!function_exists('wp_tempnam')) {
-            require_once ABSPATH . 'wp-admin/includes/file.php';
-        }
-
         $placeholder = wp_tempnam($filename);
         if (!$placeholder) throw new RuntimeException('Could not create a temporary file.');
         $path = $placeholder . '.xlsx';
