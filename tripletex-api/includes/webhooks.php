@@ -88,25 +88,46 @@ final class LH_Ttx_Webhooks {
 
     private function handle_product_event(string $event, int $ttx_product_id, ?array $value, int $subscriptionId, ?string $requestId) {
         $sku = isset($value['number']) ? trim((string) $value['number']) : '';
-        if ($sku === '') {
-            LH_Ttx_Logger::info('Webhook product event: missing SKU, aborting', [
-                'event'          => $event,
-                'ttx_product_id' => $ttx_product_id,
-                'subscriptionId' => $subscriptionId,
-            ]);
-            return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'missing_sku'], 200);
+        $product = function_exists('lh_ttx_find_wc_product_by_tripletex_product_id')
+            ? lh_ttx_find_wc_product_by_tripletex_product_id($ttx_product_id)
+            : null;
+
+        $matched_by = 'tripletex_id';
+
+        if (!$product) {
+            if ($sku === '') {
+                LH_Ttx_Logger::info('Webhook product event: missing SKU and no local Tripletex match, aborting', [
+                    'event'          => $event,
+                    'ttx_product_id' => $ttx_product_id,
+                    'subscriptionId' => $subscriptionId,
+                ]);
+                return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'missing_sku'], 200);
+            }
+
+            $product_id = $this->find_wc_product_by_sku($sku);
+            if ($product_id <= 0) {
+                LH_Ttx_Logger::info('Webhook product event: no local product with Tripletex ID or SKU', [
+                    'event'          => $event,
+                    'sku'            => $sku,
+                    'ttx_product_id' => $ttx_product_id,
+                    'subscriptionId' => $subscriptionId,
+                ]);
+                return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'product_not_found'], 200);
+            }
+
+            $product = wc_get_product($product_id);
+            $matched_by = 'sku';
         }
 
-        // Find local product by SKU
-        $product_id = $this->find_wc_product_by_sku($sku);
-        if ($product_id <= 0) {
-            LH_Ttx_Logger::info('Webhook product event: no local product with SKU', [
+        if (!$product) {
+            LH_Ttx_Logger::info('Webhook product event: resolved product could not be loaded', [
                 'event'          => $event,
                 'sku'            => $sku,
                 'ttx_product_id' => $ttx_product_id,
                 'subscriptionId' => $subscriptionId,
+                'matched_by'     => $matched_by,
             ]);
-            return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'sku_not_found'], 200);
+            return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'product_load_failed'], 200);
         }
 
         if ($event !== 'product.update') {
@@ -114,23 +135,50 @@ final class LH_Ttx_Webhooks {
                 'event'          => $event,
                 'sku'            => $sku,
                 'ttx_product_id' => $ttx_product_id,
+                'matched_by'     => $matched_by,
                 'subscriptionId' => $subscriptionId,
             ]);
 
             return new \WP_REST_Response(['ok' => true, 'ignored' => true], 200);
         }
 
+        $existing_ttx_id = max(0, (int) $product->get_meta('_tripletex_product_id', true));
+
+        if ($matched_by === 'sku' && $existing_ttx_id > 0 && $existing_ttx_id !== $ttx_product_id) {
+            LH_Ttx_Logger::error('Webhook product event: Tripletex ID conflict, not overwriting existing mapping', [
+                'event'           => $event,
+                'sku'             => $sku,
+                'ttx_product_id'  => $ttx_product_id,
+                'existing_ttx_id' => $existing_ttx_id,
+                'subscriptionId'  => $subscriptionId,
+                'matched_by'      => $matched_by,
+            ]);
+
+            return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'tripletex_id_conflict'], 200);
+        }
+
+        if ($sku !== '' && $product->get_sku() !== $sku) {
+            $product->set_sku($sku);
+        }
+
+        if ($existing_ttx_id !== $ttx_product_id) {
+            $product->update_meta_data('_tripletex_product_id', $ttx_product_id);
+        }
+
+        $product->save();
+
         $price = $value['priceExcludingVatCurrency'] ?? null;
 
         $svc = LH_Ttx_Service_Registry::instance()->products();
 
         // pass price, so if it is defined we use this directly instead of asking tripletex for updated price
-        $priceRes = $svc->sync_price_from_tripletex($product_id, $price);
+        $priceRes = $svc->sync_price_from_tripletex((int) $product->get_id(), $price);
         if (is_wp_error($priceRes)) {
             LH_Ttx_Logger::error('Webhook product price sync failed', [
                 'ttx_product_id' => $ttx_product_id,
                 'sku'            => $sku,
                 'event'          => $event,
+                'matched_by'     => $matched_by,
                 'error'          => $priceRes->get_error_message(),
             ]);
             // 200 to avoid disabling
@@ -144,6 +192,7 @@ final class LH_Ttx_Webhooks {
             'ttx_product_id' => $ttx_product_id,
             'sku'            => $sku,
             'event'          => $event,
+            'matched_by'     => $matched_by,
             'subscriptionId' => $subscriptionId,
         ]);
 

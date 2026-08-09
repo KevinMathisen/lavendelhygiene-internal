@@ -76,6 +76,36 @@ function get_tripletex_product_id_from_wc_product(\WC_Product $product) {
     return $ttx_id;
 }
 
+/**
+ * Find a WooCommerce product or variation by stored Tripletex product ID.
+ *
+ * @param int $ttx_product_id Tripletex product ID.
+ * @return \WC_Product|null Matching WooCommerce product object, or null if not found.
+ */
+function lh_ttx_find_wc_product_by_tripletex_product_id(int $ttx_product_id) {
+    if ($ttx_product_id <= 0) return null;
+
+    $query = new WP_Query([
+        'post_type'      => ['product', 'product_variation'],
+        'post_status'    => ['publish', 'private', 'draft', 'pending', 'future'],
+        'fields'         => 'ids',
+        'posts_per_page' => 1,
+        'no_found_rows'  => true,
+        'meta_query'     => [
+            [
+                'key'     => '_tripletex_product_id',
+                'value'   => (string) $ttx_product_id,
+                'compare' => '=',
+            ],
+        ],
+    ]);
+
+    if (empty($query->posts)) return null;
+
+    $product = wc_get_product((int) $query->posts[0]);
+    return $product ?: null;
+}
+
 function lh_ttx_is_avdeling(int $user_id): bool {
     if ($user_id <= 0) return false;
 
