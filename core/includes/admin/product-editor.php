@@ -132,6 +132,9 @@ class LavendelHygiene_ProductMetaEditor {
                     'label'       => __( 'Temporary unavailable message', 'lavendelhygiene' ),
                     'description' => __( 'Shown automatically when this product is blocked, or when one or more variations are blocked. Leave empty to use the global default message.', 'lavendelhygiene' ),
                     'desc_tip'    => false,
+                    'placeholder' => wp_strip_all_tags( LavendelHygiene_Messages::render( 'temporary_unavailable_notice', [
+                        'contact_url' => (string) home_url( '/kontakt/' ),
+                    ] ) ),
                     'value'       => $temp_message,
                 ] );
 
