@@ -144,7 +144,7 @@ final class LH_Ttx_Logistics {
             return false;
         }
 
-        $subject = sprintf( 'Logistikkdokumenter – ordre %s', $order_number);
+        $subject = sprintf( 'NVIT og ADR dokumenter – ordre %s', $order_number);
 
         $body = '<p>Logistikkdokumentene er generert.</p>';
         $body .= '<p>';
