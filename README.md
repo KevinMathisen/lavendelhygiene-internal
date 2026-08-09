@@ -131,12 +131,12 @@ Copy the value.token from the response.
 ```bash
 export BASE="https://tripletex.no/v2"
 export COMPANY_ID=0
-export SESSION_TOKEN="PASTE_SESSION_TOKEN_HERE"
+export SESSION_TOKEN="eyJ0b2tlbklkIjoyNDg2NzQ1NDcwLCJ0b2tlbiI6IjhmMGQ5NzIzLWRkM2EtNDhmNi1iOGY4LTA4NzkyOTliOThkNCJ9"
 export AUTH_BASIC=$(printf "%s:%s" "$COMPANY_ID" "$SESSION_TOKEN" | base64 -w0)
 
-export TARGET_URL="https://example.com/wp-json/lh-ttx/v1/webhooks/event"
+export TARGET_URL="https://lavendelhygiene.no/wp-json/lh-ttx/v1/webhooks/event"
 export CALLBACK_AUTH_NAME="Authorization"
-export CALLBACK_AUTH_VALUE="Bearer YOUR_SECRET"  # must match the plugin's Webhook secret
+export CALLBACK_AUTH_VALUE="Bearer lh-turtle-secret"  # must match the plugin's Webhook secret
 
 # product.update
 payload=$(jq -n \
@@ -162,6 +162,27 @@ curl -X POST "$BASE/event/subscription" \
 # order.update
 payload=$(jq -n \
   --arg event "order.update" \
+  --arg targetUrl "$TARGET_URL" \
+  --arg fields "status" \
+  --arg authHeaderName "$CALLBACK_AUTH_NAME" \
+  --arg authHeaderValue "$CALLBACK_AUTH_VALUE" \
+  '{
+    event: $event,
+    targetUrl: $targetUrl,
+    fields: $fields,
+    authHeaderName: $authHeaderName,
+    authHeaderValue: $authHeaderValue
+  }')
+
+curl -X POST "$BASE/event/subscription" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $AUTH_BASIC" \
+  --data "$payload"
+
+# order.create
+payload=$(jq -n \
+  --arg event "order.create" \
   --arg targetUrl "$TARGET_URL" \
   --arg fields "status" \
   --arg authHeaderName "$CALLBACK_AUTH_NAME" \
