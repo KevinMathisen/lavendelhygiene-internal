@@ -264,6 +264,10 @@ final class LH_Ttx_Spreadsheet_Generator {
     }
 
     private static function save(Spreadsheet $spreadsheet, string $filename): string {
+        if (!function_exists('wp_tempnam')) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+        }
+
         $placeholder = wp_tempnam($filename);
         if (!$placeholder) throw new RuntimeException('Could not create a temporary file.');
         $path = $placeholder . '.xlsx';
