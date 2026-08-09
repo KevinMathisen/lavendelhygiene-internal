@@ -15,7 +15,6 @@ class LavendelHygiene_ProductMetaEditor {
     // Temporary unavailable (parent + variation)
     const META_TEMP_UNAVAILABLE         = '_lavh_temp_unavailable';
     const META_TEMP_UNAVAILABLE_MESSAGE = '_lavh_temp_unavailable_message';
-    const META_TEMP_UNAVAILABLE_SHOW    = '_lavh_temp_unavailable_message_enabled';
 
     public function __construct() {
         add_filter( 'woocommerce_product_data_tabs', [ $this, 'add_tab' ] );
@@ -59,7 +58,6 @@ class LavendelHygiene_ProductMetaEditor {
         $ttx_pid  = (int) get_post_meta( $product_id, self::META_TRIPLETEX_PRODUCT_ID, true );
 
         $temp_block    = (string) get_post_meta( $product_id, self::META_TEMP_UNAVAILABLE, true );
-        $temp_show     = (string) get_post_meta( $product_id, self::META_TEMP_UNAVAILABLE_SHOW, true );
         $temp_message  = (string) get_post_meta( $product_id, self::META_TEMP_UNAVAILABLE_MESSAGE, true );
 
 
@@ -129,19 +127,10 @@ class LavendelHygiene_ProductMetaEditor {
                        . '</span></p>';
                 }
 
-                woocommerce_wp_checkbox( [
-                    'id'          => self::META_TEMP_UNAVAILABLE_SHOW,
-                    'label'       => __( 'Show temporary unavailable message on product page', 'lavendelhygiene' ),
-                    'description' => __( 'Controls notice visibility independently from blocking.', 'lavendelhygiene' ),
-                    'value'       => ( $temp_show === 'yes' ) ? 'yes' : 'no',
-                    'cbvalue'     => 'yes',
-                    'desc_tip'    => false,
-                ] );
-
                 woocommerce_wp_textarea_input( [
                     'id'          => self::META_TEMP_UNAVAILABLE_MESSAGE,
                     'label'       => __( 'Temporary unavailable message', 'lavendelhygiene' ),
-                    'description' => __( 'One shared message used for this product and blocked variations. Leave empty to use global default message.', 'lavendelhygiene' ),
+                    'description' => __( 'Shown automatically when this product is blocked, or when one or more variations are blocked. Leave empty to use the global default message.', 'lavendelhygiene' ),
                     'desc_tip'    => false,
                     'value'       => $temp_message,
                 ] );
@@ -242,9 +231,6 @@ class LavendelHygiene_ProductMetaEditor {
         } else {
             $product->update_meta_data( self::META_TEMP_UNAVAILABLE, 'no' );
         }
-
-        $temp_show  = isset( $_POST[ self::META_TEMP_UNAVAILABLE_SHOW ] ) ? 'yes' : 'no';
-        $product->update_meta_data( self::META_TEMP_UNAVAILABLE_SHOW, $temp_show );
 
         $temp_message = isset( $_POST[ self::META_TEMP_UNAVAILABLE_MESSAGE ] )
             ? wp_kses_post( wp_unslash( $_POST[ self::META_TEMP_UNAVAILABLE_MESSAGE ] ) )

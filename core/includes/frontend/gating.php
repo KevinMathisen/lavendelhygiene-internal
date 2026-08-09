@@ -4,7 +4,6 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 class LavendelHygiene_Gating {
     const META_TEMP_UNAVAILABLE         = '_lavh_temp_unavailable';
     const META_TEMP_UNAVAILABLE_MESSAGE = '_lavh_temp_unavailable_message';
-    const META_TEMP_UNAVAILABLE_SHOW    = '_lavh_temp_unavailable_message_enabled';
 
     public function __construct() {
         /* UX notices */
@@ -106,11 +105,30 @@ class LavendelHygiene_Gating {
         return get_post_meta( $product->get_id(), self::META_TEMP_UNAVAILABLE, true ) === 'yes';
     }
 
+    private function has_temporarily_unavailable_variations( $product ): bool {
+        $product = $this->normalize_to_parent_product( $product );
+        if ( ! $product || ! $product->is_type( 'variable' ) ) {
+            return false;
+        }
+
+        foreach ( $product->get_children() as $variation_id ) {
+            if ( get_post_meta( (int) $variation_id, self::META_TEMP_UNAVAILABLE, true ) === 'yes' ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function should_show_temp_unavailable_notice( $product ): bool {
         $parent = $this->normalize_to_parent_product( $product );
         if ( ! $parent ) return false;
 
-        return get_post_meta( $parent->get_id(), self::META_TEMP_UNAVAILABLE_SHOW, true ) === 'yes';
+        if ( get_post_meta( $parent->get_id(), self::META_TEMP_UNAVAILABLE, true ) === 'yes' ) {
+            return true;
+        }
+
+        return $this->has_temporarily_unavailable_variations( $parent );
     }
 
     /* ---------------- Rules (hide price? block purchase?) ---------------- */
