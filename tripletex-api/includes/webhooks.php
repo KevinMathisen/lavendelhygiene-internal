@@ -87,6 +87,16 @@ final class LH_Ttx_Webhooks {
     /* --------------------- Event types ---------------------- */
 
     private function handle_product_event(string $event, int $ttx_product_id, ?array $value, int $subscriptionId, ?string $requestId) {
+        if ($event !== 'product.update') {
+            LH_Ttx_Logger::info('Webhook product event ignored (unhandled verb)', [
+                'event'          => $event,
+                'ttx_product_id' => $ttx_product_id,
+                'subscriptionId' => $subscriptionId,
+            ]);
+
+            return new \WP_REST_Response(['ok' => true, 'ignored' => true], 200);
+        }
+
         $sku = isset($value['number']) ? trim((string) $value['number']) : '';
         $product = function_exists('lh_ttx_find_wc_product_by_tripletex_product_id')
             ? lh_ttx_find_wc_product_by_tripletex_product_id($ttx_product_id)
@@ -128,18 +138,6 @@ final class LH_Ttx_Webhooks {
                 'matched_by'     => $matched_by,
             ]);
             return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'product_load_failed'], 200);
-        }
-
-        if ($event !== 'product.update') {
-            LH_Ttx_Logger::info('Webhook product event ignored (unhandled verb)', [
-                'event'          => $event,
-                'sku'            => $sku,
-                'ttx_product_id' => $ttx_product_id,
-                'matched_by'     => $matched_by,
-                'subscriptionId' => $subscriptionId,
-            ]);
-
-            return new \WP_REST_Response(['ok' => true, 'ignored' => true], 200);
         }
 
         $existing_ttx_id = max(0, (int) $product->get_meta('_tripletex_product_id', true));
