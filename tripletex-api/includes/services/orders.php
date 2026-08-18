@@ -150,7 +150,7 @@ final class LH_Ttx_Orders_Service {
             $payload['deliveryAddress'] = ['id' => $ttx_delivery_address_id];
         }
 
-        $payload['invoiceComment'] = $this->compose_invoice_comment($order);
+        $payload['internalComment'] = $this->compose_invoice_comment($order);
 
         // prepare discount service for user so we can check if they have discounts
         $user_id = (int) $order->get_user_id();
