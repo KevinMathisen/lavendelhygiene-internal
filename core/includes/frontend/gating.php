@@ -31,6 +31,9 @@ class LavendelHygiene_Gating {
 
         add_filter( 'rest_request_after_callbacks',                [ $this, 'scrub_store_api_prices' ], 10, 3 );
         add_filter( 'woocommerce_hydration_request_after_callbacks', [ $this, 'scrub_store_api_prices' ], 10, 3 );
+
+        /* Alert messages */
+        add_filter( 'woocommerce_get_script_data', [ $this, 'filter_variation_script_data' ], 10, 2 );
     }
 
     /* ---------------- Product classification ---------------- */
@@ -494,9 +497,9 @@ class LavendelHygiene_Gating {
                 .lavh-cart-checkout-notice{display:flex;justify-content:center;margin:0 0 30px;}
                 .lavh-cart-checkout-notice .wc-block-components-notice-banner{
                     width:fit-content;
-                    max-width:800px;
+                    max-width:700px;
                     font-size:1rem;
-                    line-height:1.4;
+                    line-height:1.5;
                     padding:14px 22px;
                     border:0px;
                     background:#f3f8ff;
@@ -644,5 +647,17 @@ class LavendelHygiene_Gating {
         }
 
         return $data;
+    }
+
+    public function filter_variation_script_data( $params, $handle ) {
+        if ( 'wc-add-to-cart-variation' !== $handle || ! is_array( $params ) ) {
+            return $params;
+        }
+
+        if ( ! is_user_logged_in() ) {
+            $params['i18n_unavailable_text'] = __( 'Log inn for å se priser', 'lavendelhygiene' );
+        }
+
+        return $params;
     }
 }
