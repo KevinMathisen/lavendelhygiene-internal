@@ -21,9 +21,16 @@ class LavendelHygiene_ProfileFields {
         if ( ! current_user_can( 'list_users' ) ) return;
         $svc  = new LavendelHygiene_TripletexLinkingService();
         $ttx  = $svc->get_ttx_id( $user->ID );
+        $status = (string) get_user_meta( $user->ID, LavendelHygiene_Core::META_STATUS, true );
         ?>
         <h2><?php esc_html_e('LH: Tripletex link', 'lavendelhygiene'); ?></h2>
         <table class="form-table" role="presentation">
+            <tr>
+                <th><?php esc_html_e( 'B2B status', 'lavendelhygiene' ); ?></th>
+                <td>
+                    <p><strong><?php echo esc_html( $status !== '' ? $status : '—' ); ?></strong></p>
+                </td>
+            </tr>
             <tr>
                 <th><label for="tripletex_customer_id"><?php esc_html_e('Tripletex Customer ID','lavendelhygiene'); ?></label></th>
                 <td>

@@ -10,6 +10,8 @@ class LavendelHygiene_AdminApplications {
 
         add_action( 'admin_post_lavendelhygiene_approve', [ $this, 'handle_approve' ] );
         add_action( 'admin_post_lavendelhygiene_deny', [ $this, 'handle_deny' ] );
+        add_action( 'admin_post_lavendelhygiene_restore_pending', [ $this, 'handle_restore_pending' ] );
+        add_action( 'admin_post_lavendelhygiene_delete_denied', [ $this, 'handle_delete_denied' ] );
 
         add_action( 'admin_post_lavendelhygiene_save_notify_email', [ $this, 'handle_save_notify_email' ] );
     }
@@ -35,6 +37,17 @@ class LavendelHygiene_AdminApplications {
             'order'   => 'ASC',
         ] );
         $users = $q->get_results();
+
+        $denied_q = new WP_User_Query( [
+            'number'     => 50,
+            'fields'     => [ 'ID', 'user_login', 'user_email' ],
+            'orderby'    => 'registered',
+            'order'      => 'DESC',
+            'meta_key'   => LavendelHygiene_Core::META_STATUS,
+            'meta_value' => 'denied',
+        ] );
+        $denied_users = $denied_q->get_results();
+
         $svc = new LavendelHygiene_TripletexLinkingService();
         $notify_email = get_option( 'lavendelhygiene_notify_email', get_option( 'admin_email' ) );
 
@@ -50,6 +63,12 @@ class LavendelHygiene_AdminApplications {
             <?php endif; ?>
             <?php if ( isset($_GET['tripletex_created']) ) : ?>
                 <div class="notice notice-success"><p><?php esc_html_e('Customer created in Tripletex.', 'lavendelhygiene'); ?></p></div>
+            <?php endif; ?>
+            <?php if ( isset($_GET['restored_pending']) ) : ?>
+                <div class="notice notice-success"><p><?php esc_html_e('Customer restored to pending.', 'lavendelhygiene'); ?></p></div>
+            <?php endif; ?>
+            <?php if ( isset($_GET['denied_deleted']) ) : ?>
+                <div class="notice notice-success"><p><?php esc_html_e('Denied customer deleted.', 'lavendelhygiene'); ?></p></div>
             <?php endif; ?>
             <?php if (!empty($_GET['tripletex_error'])) : ?>
                 <div class="notice notice-error">
@@ -254,7 +273,11 @@ class LavendelHygiene_AdminApplications {
                                     </p>
                                 <?php endif; ?>
 
-                                <a href="<?php echo esc_url($deny_url); ?>" class="button"> <?php esc_html_e('Deny','lavendelhygiene'); ?> </a>
+                                <a
+                                    href="<?php echo esc_url( $deny_url ); ?>"
+                                    class="button"
+                                    onclick="return confirm('<?php echo esc_js( __( 'Deny this customer? They will be moved out of the pending queue.', 'lavendelhygiene' ) ); ?>');"
+                                > <?php esc_html_e('Deny','lavendelhygiene'); ?> </a>
 
                                 <a href="<?php echo esc_url(get_edit_user_link($u->ID)); ?>" class="button"> <?php esc_html_e('View', 'lavendelhygiene'); ?> </a>
 
@@ -263,6 +286,50 @@ class LavendelHygiene_AdminApplications {
                                         <?php esc_html_e('Create in Tripletex', 'lavendelhygiene'); ?> 
                                     </a>
                                 <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+
+            <hr style="margin:24px 0;">
+
+            <h2><?php esc_html_e( 'Denied customers', 'lavendelhygiene' ); ?></h2>
+            <p class="description"><?php esc_html_e( 'Restore a denied customer back to the pending queue, or delete the account if it was denied in error and should not be kept.', 'lavendelhygiene' ); ?></p>
+
+            <?php if ( empty( $denied_users ) ) : ?>
+                <p><?php esc_html_e( 'No denied customers found.', 'lavendelhygiene' ); ?></p>
+            <?php else : ?>
+                <table class="widefat striped">
+                    <thead>
+                    <tr>
+                        <th><?php esc_html_e( 'User', 'lavendelhygiene' ); ?></th>
+                        <th><?php esc_html_e( 'Email', 'lavendelhygiene' ); ?></th>
+                        <th><?php esc_html_e( 'Actions', 'lavendelhygiene' ); ?></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ( $denied_users as $denied_user ) :
+                        $restore_url = wp_nonce_url(
+                            admin_url( 'admin-post.php?action=lavendelhygiene_restore_pending&user_id=' . $denied_user->ID ),
+                            'lavendelhygiene_restore_pending_' . $denied_user->ID
+                        );
+                        $delete_url = wp_nonce_url(
+                            admin_url( 'admin-post.php?action=lavendelhygiene_delete_denied&user_id=' . $denied_user->ID ),
+                            'lavendelhygiene_delete_denied_' . $denied_user->ID
+                        );
+                        ?>
+                        <tr>
+                            <td><?php echo esc_html( $denied_user->user_login ); ?></td>
+                            <td><?php echo esc_html( $denied_user->user_email ); ?></td>
+                            <td>
+                                <a href="<?php echo esc_url( $restore_url ); ?>" class="button button-secondary"><?php esc_html_e( 'Restore', 'lavendelhygiene' ); ?></a>
+                                <a
+                                    href="<?php echo esc_url( $delete_url ); ?>"
+                                    class="button"
+                                    onclick="return confirm('<?php echo esc_js( __( 'Delete this denied customer permanently?', 'lavendelhygiene' ) ); ?>');"
+                                ><?php esc_html_e( 'Delete', 'lavendelhygiene' ); ?></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -353,6 +420,54 @@ class LavendelHygiene_AdminApplications {
             );
         }
         wp_safe_redirect( admin_url( 'users.php?page=lavendelhygiene-applications&denied=1' ) );
+        exit;
+    }
+
+    public function handle_restore_pending() {
+        if ( ! current_user_can( 'promote_users' ) ) {
+            wp_die( __( 'No permission.', 'lavendelhygiene' ) );
+        }
+
+        $user_id = isset( $_GET['user_id'] ) ? absint( $_GET['user_id'] ) : 0;
+        check_admin_referer( 'lavendelhygiene_restore_pending_' . $user_id );
+
+        $user = get_user_by( 'id', $user_id );
+        if ( ! $user ) {
+            wp_die( __( 'User not found.', 'lavendelhygiene' ) );
+        }
+
+        $user->set_role( LavendelHygiene_Core::PENDING_ROLE );
+        update_user_meta( $user_id, LavendelHygiene_Core::META_STATUS, 'pending' );
+        delete_user_meta( $user_id, LavendelHygiene_Core::META_APPROVED_BY );
+        delete_user_meta( $user_id, LavendelHygiene_Core::META_APPROVED_AT );
+
+        wp_safe_redirect( admin_url( 'users.php?page=lavendelhygiene-applications&restored_pending=1' ) );
+        exit;
+    }
+
+    public function handle_delete_denied() {
+        if ( ! current_user_can( 'delete_users' ) ) {
+            wp_die( __( 'No permission.', 'lavendelhygiene' ) );
+        }
+
+        $user_id = isset( $_GET['user_id'] ) ? absint( $_GET['user_id'] ) : 0;
+        check_admin_referer( 'lavendelhygiene_delete_denied_' . $user_id );
+
+        $user = get_user_by( 'id', $user_id );
+        if ( ! $user ) {
+            wp_die( __( 'User not found.', 'lavendelhygiene' ) );
+        }
+
+        if ( ! function_exists( 'wp_delete_user' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/user.php';
+        }
+
+        delete_user_meta( $user_id, LavendelHygiene_Core::META_STATUS );
+        delete_user_meta( $user_id, LavendelHygiene_Core::META_APPROVED_BY );
+        delete_user_meta( $user_id, LavendelHygiene_Core::META_APPROVED_AT );
+        wp_delete_user( $user_id );
+
+        wp_safe_redirect( admin_url( 'users.php?page=lavendelhygiene-applications&denied_deleted=1' ) );
         exit;
     }
 
