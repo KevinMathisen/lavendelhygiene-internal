@@ -651,7 +651,7 @@ class LavendelHygiene_Gating {
 
 public function filter_variation_params( $params ) {
     if ( ! is_user_logged_in() && is_array( $params ) ) {
-        $params['i18n_unavailable_text'] = __( 'Log inn for å se priser', 'lavendelhygiene' );
+        $params['i18n_unavailable_text'] = __( 'Du er ikke logget inn, og kan derfor ikke legge varer i handlekurven. Registrer deg og få konto på Min Side.', 'lavendelhygiene' );
     }
 
     return $params;
