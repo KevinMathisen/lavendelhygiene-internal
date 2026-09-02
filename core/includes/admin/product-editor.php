@@ -250,8 +250,10 @@ class LavendelHygiene_ProductMetaEditor {
         if ( ! $product->is_type( 'variable' ) && isset( $_POST[ self::META_TRIPLETEX_PRODUCT_ID ] ) ) {
             $raw = wp_unslash( $_POST[ self::META_TRIPLETEX_PRODUCT_ID ] );
             $pid = (int) preg_replace( '/\D+/', '', (string) $raw );
+            $pid = max( 0, $pid );
 
-            $product->update_meta_data( self::META_TRIPLETEX_PRODUCT_ID, max( 0, $pid ) );
+            $product->update_meta_data( self::META_TRIPLETEX_PRODUCT_ID, $pid );
+            $this->sync_price_from_tripletex_if_available( $product, $pid );
         }
 
         // docs rows => json object {label: url}
@@ -356,6 +358,7 @@ class LavendelHygiene_ProductMetaEditor {
         $variation = wc_get_product( $variation_id );
         if ( $variation ) {
             $variation->update_meta_data( self::META_TRIPLETEX_PRODUCT_ID, $pid );
+            $this->sync_price_from_tripletex_if_available( $variation, $pid );
             $variation->save();
         } else {
             update_post_meta( $variation_id, self::META_TRIPLETEX_PRODUCT_ID, $pid );
@@ -422,5 +425,28 @@ class LavendelHygiene_ProductMetaEditor {
         })();
         </script>
         <?php
+    }
+
+    private function sync_price_from_tripletex_if_available( WC_Product $product, int $ttx_pid ): void {
+        if ( $ttx_pid <= 0 || ! function_exists( 'ttx_products_get_price' ) ) {
+            return;
+        }
+
+        $price = ttx_products_get_price( $ttx_pid );
+        if ( is_wp_error( $price ) ) {
+            if ( class_exists( 'LH_Ttx_Logger' ) ) {
+                LH_Ttx_Logger::error( 'Tripletex price sync failed after product save', [
+                    'product_id' => $product->get_id(),
+                    'ttx_pid'    => $ttx_pid,
+                    'error'      => $price->get_error_message(),
+                ] );
+            }
+            return;
+        }
+
+        $price = (float) $price;
+        if ( $price <= 0 ) return;
+
+        $product->set_regular_price( wc_format_decimal( $price, wc_get_price_decimals() ) );
     }
 }
