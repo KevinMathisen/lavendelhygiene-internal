@@ -55,6 +55,27 @@ class LavendelHygiene_AdminApplications {
         <div class="wrap">
             <h1><?php esc_html_e( 'Pending Users', 'lavendelhygiene' ); ?></h1>
 
+            <div class="notice notice-info inline">
+                <h2><?php esc_html_e( 'User approval flow', 'lavendelhygiene' ); ?></h2>
+                <ul style="list-style:disc;margin-left:20px;">
+                    <li><?php esc_html_e( 'Users register via WooCommerce and become pending.', 'lavendelhygiene' ); ?></li>
+                    <li><?php esc_html_e( 'Check the company, organisation number, contact details, and any avdeling name.', 'lavendelhygiene' ); ?></li>
+                    <li>
+                        <?php esc_html_e( 'Tripletex linking:', 'lavendelhygiene' ); ?>
+                        <ul style="list-style:circle;margin-left:20px;">
+                            <li><?php esc_html_e( 'Review the candidate IDs and suggestion reason when an ID is suggested.', 'lavendelhygiene' ); ?></li>
+                            <li><?php esc_html_e( 'Keep the suggestion if it is correct, or replace it with the correct Tripletex ID.', 'lavendelhygiene' ); ?></li>
+                            <li><?php esc_html_e( 'If no Tripletex customer exists for this user, leave the ID field empty and click Create in Tripletex.', 'lavendelhygiene' ); ?></li>
+                            <li><?php esc_html_e( 'A user with a saved Tripletex ID cannot be created as a new customer.', 'lavendelhygiene' ); ?></li>
+                            <li><?php esc_html_e( 'Users from the same organisation number may have different Tripletex IDs, especially for different avdelinger.', 'lavendelhygiene' ); ?></li>
+                        </ul>
+                    </li>
+                    <li><?php esc_html_e( 'Save the correct Tripletex ID, then click Approve.', 'lavendelhygiene' ); ?></li>
+                    <li><?php esc_html_e( 'Click Deny to reject the application.', 'lavendelhygiene' ); ?></li>
+                    <li><?php esc_html_e( 'The user receives an email after approval or denial.', 'lavendelhygiene' ); ?></li>
+                </ul>
+            </div>
+
             <?php if ( isset($_GET['notify_email_updated']) ) : ?>
                 <div class="notice notice-success"><p><?php esc_html_e('Notification email updated.', 'lavendelhygiene'); ?></p></div>
             <?php endif; ?>

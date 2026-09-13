@@ -55,12 +55,17 @@ lavendelhygiene-internal/
 
 **User approval flow:** 
 - Users register via Woo; they become pending
-- Admins Manage users
-  - Tripletex linking:
-    - Manually enter “Tripletex ID” in field, or
-    - If user does not exist you can click “Create in Tripletex”
-  - Then click approve/deny
-- User notified if approved/denied
+- Admins open **Users --> LH: Pending Users** and review the application.
+- Check the company, organisation number, contact details, and any avdeling name.
+- Tripletex linking:
+  - If a Tripletex ID is suggested, review the candidate list and suggestion reason.
+  - Keep the suggestion if it is correct, or replace it with the correct Tripletex ID.
+  - If no Tripletex customer exists for this user, leave the ID field empty and click **Create in Tripletex**.
+  - If a user has a Tripletex ID saved/in the field, it cannot be created as a new customer.
+  - Users from same company/orgnumber may have different Tripletex IDs, especially for different avdelinger.
+- After the correct Tripletex ID is saved, click **Approve**.
+- To reject the application, click **Deny** instead.
+- The user receives an email after approval or denial.
 
 ![Digram of overview](docs/overview-lh.png)
 
