@@ -55,17 +55,8 @@ class LavendelHygiene_TripletexLinkingService {
     }
 
     /**
-     * Resolve the local company state for an organisation number.
-     *
-     * Returns:
-     * [
-     *   'orgnr'             => string,
-     *   'user_ids'          => int[],
-     *   'ttx_ids'           => string[],
-     *   'existing_ttx_id'   => string,
-     *   'has_existing_users'=> bool,
-     *   'has_conflict'      => bool,
-     * ]
+     * Resolve the local customer links for an organisation number.
+     * Multiple Tripletex customers may share the same organisation number.
      */
     public function get_company_state_for_orgnr(string $orgnr, int $exclude_user_id = 0): array {
         $orgnr = $this->sanitize_orgnr( $orgnr );
@@ -86,7 +77,7 @@ class LavendelHygiene_TripletexLinkingService {
             'ttx_ids'            => $ttx_ids,
             'existing_ttx_id'    => count( $ttx_ids ) === 1 ? $ttx_ids[0] : '',
             'has_existing_users' => ! empty( $user_ids ),
-            'has_conflict'       => count( $ttx_ids ) > 1,
+            'has_conflict'       => false,
         ];
     }
 
@@ -96,31 +87,112 @@ class LavendelHygiene_TripletexLinkingService {
     }
 
     /**
-     * Resolve the existing Tripletex customer ID for an orgnr.
+     * Resolve the existing Tripletex customer ID for an orgnr when unique.
      *
-     * @return string|\WP_Error Empty string when none exists.
+     * @return string Empty string when none or multiple customers exist.
      */
     public function find_existing_ttx_id_for_orgnr( string $orgnr, int $exclude_user_id = 0 ) {
         $state = $this->get_company_state_for_orgnr($orgnr, $exclude_user_id);
-
-        if ( $state['has_conflict'] ) {
-            return new WP_Error(
-                'ttx_orgnr_conflict',
-                __('Brukere med samme organisasjonsnummer er knyttet til forskjellige Tripletex-kunder.','lavendelhygiene'),
-                $state
-            );
-        }
         return (string) $state['existing_ttx_id'];
+    }
+
+    /**
+     * Return ranked local Tripletex customer candidates for a user.
+     *
+     * @return array{suggested_ttx_id:string,suggestion_reason:string,is_ambiguous:bool,candidates:array<int,array<string,mixed>>}
+     */
+    public function get_tripletex_candidates_for_user( int $user_id ): array {
+        $orgnr = $this->get_user_orgnr( $user_id );
+        $target_avdeling_name = trim( (string) get_user_meta(
+            $user_id,
+            LavendelHygiene_Core::META_AVDELING_NAME,
+            true
+        ) );
+        $candidates_by_id = [];
+
+        foreach ( $this->get_user_ids_for_orgnr( $orgnr, $user_id ) as $other_user_id ) {
+            $ttx_id = $this->get_ttx_id( $other_user_id );
+            if ( $ttx_id === '' ) continue;
+
+            if ( ! isset( $candidates_by_id[ $ttx_id ] ) ) {
+                $candidates_by_id[ $ttx_id ] = [
+                    'ttx_id'                => $ttx_id,
+                    'user_ids'              => [],
+                    'avdeling_names'        => [],
+                    'has_non_avdeling_user' => false,
+                ];
+            }
+
+            $avdeling_name = trim( (string) get_user_meta(
+                $other_user_id,
+                LavendelHygiene_Core::META_AVDELING_NAME,
+                true
+            ) );
+            $is_avdeling = $this->user_is_avdeling( $other_user_id );
+
+            $candidates_by_id[ $ttx_id ]['user_ids'][] = $other_user_id;
+            if ( $avdeling_name !== '' ) {
+                $candidates_by_id[ $ttx_id ]['avdeling_names'][] = $avdeling_name;
+            }
+            if ( ! $is_avdeling && $avdeling_name === '' ) {
+                $candidates_by_id[ $ttx_id ]['has_non_avdeling_user'] = true;
+            }
+        }
+
+        $candidates = [];
+        foreach ( $candidates_by_id as $candidate ) {
+            $candidate['avdeling_names'] = array_values( array_unique( $candidate['avdeling_names'] ) );
+            $candidate['score'] = $this->score_tripletex_candidate(
+                $target_avdeling_name,
+                $candidate['avdeling_names'],
+                $candidate['has_non_avdeling_user']
+            );
+            $candidate['reason'] = $this->get_tripletex_candidate_reason(
+                $target_avdeling_name,
+                $candidate['avdeling_names'],
+                $candidate['has_non_avdeling_user'],
+                $candidate['score']
+            );
+            $candidates[] = $candidate;
+        }
+
+        usort( $candidates, static function( array $left, array $right ): int {
+            if ( $left['score'] !== $right['score'] ) {
+                return $right['score'] <=> $left['score'];
+            }
+            return (int) $left['ttx_id'] <=> (int) $right['ttx_id'];
+        } );
+
+        if ( empty( $candidates ) ) {
+            return [
+                'suggested_ttx_id'  => '',
+                'suggestion_reason' => '',
+                'is_ambiguous'      => false,
+                'candidates'        => [],
+            ];
+        }
+
+        $suggestion = $candidates[0];
+        $is_ambiguous = count( $candidates ) > 1
+            && $suggestion['score'] === $candidates[1]['score'];
+
+        return [
+            'suggested_ttx_id'  => (string) $suggestion['ttx_id'],
+            'suggestion_reason' => count( $candidates ) === 1
+                ? __( 'Only Tripletex customer found for this organisation number.', 'lavendelhygiene' )
+                : (string) $suggestion['reason'],
+            'is_ambiguous'      => $is_ambiguous,
+            'candidates'        => $candidates,
+        ];
     }
 
 
     /**
      * Validate assignment of a Tripletex ID to a user.
      *
-     * Rules:
-     * - Users with the same orgnr may share one Tripletex ID.
-     * - The orgnr may not already map to another Tripletex ID.
-     * - The Tripletex ID may not be used by another orgnr.
+    * Rules:
+    * - Users with the same orgnr may use one or more Tripletex IDs.
+    * - The Tripletex ID may not be used by another orgnr.
      *
      * @return true|\WP_Error
      */
@@ -131,37 +203,6 @@ class LavendelHygiene_TripletexLinkingService {
 
         $orgnr = $this->get_user_orgnr( $user_id );
         if ( $orgnr === '' ) return new WP_Error('orgnr_missing', __('Brukeren mangler organisasjonsnummer.', 'lavendelhygiene'));
-
-        // same orgnr cannot already map to another Tripletex ID.
-        $company_state = $this->get_company_state_for_orgnr($orgnr, $user_id);
-
-        if ( $company_state['has_conflict'] ) {
-            return new WP_Error(
-                'ttx_orgnr_conflict',
-                __(
-                    'Organisasjonsnummeret er allerede knyttet til flere forskjellige Tripletex-ID-er. Dette må rettes manuelt.',
-                    'lavendelhygiene'
-                ),
-                $company_state
-            );
-        }
-        $existing_company_ttx_id = (string) $company_state['existing_ttx_id'];
-
-        if ($existing_company_ttx_id !== '' && $existing_company_ttx_id !== $ttx_id) {
-            return new WP_Error(
-                'ttx_orgnr_already_linked',
-                sprintf(
-                    __('Organisasjonsnummeret er allerede knyttet til Tripletex-ID %s.', 'lavendelhygiene'),
-                    $existing_company_ttx_id
-                ),
-                [
-                    'orgnr'                 => $orgnr,
-                    'existing_ttx_id'       => $existing_company_ttx_id,
-                    'attempted_ttx_id'      => $ttx_id,
-                    'existing_user_ids'     => $company_state['user_ids'],
-                ]
-            );
-        }
 
         // the same Tripletex ID cannot belong to another orgnr.
         $query = new WP_User_Query( [
@@ -193,6 +234,74 @@ class LavendelHygiene_TripletexLinkingService {
         }
 
         return true;
+    }
+
+    private function score_tripletex_candidate(
+        string $target_avdeling_name,
+        array $candidate_avdeling_names,
+        bool $has_non_avdeling_user
+    ): int {
+        $target = $this->normalize_avdeling_name( $target_avdeling_name );
+
+        if ( $target === '' ) {
+            return $has_non_avdeling_user ? 100 : 0;
+        }
+
+        $best_score = 0;
+        foreach ( $candidate_avdeling_names as $candidate_avdeling_name ) {
+            $candidate = $this->normalize_avdeling_name( $candidate_avdeling_name );
+            if ( $candidate === '' ) continue;
+
+            if ( $target === $candidate ) {
+                $best_score = max( $best_score, 100 );
+                continue;
+            }
+
+            if ( str_contains( $target, $candidate ) || str_contains( $candidate, $target ) ) {
+                $best_score = max( $best_score, 80 );
+                continue;
+            }
+
+            $target_tokens = array_unique( explode( ' ', $target ) );
+            $candidate_tokens = array_unique( explode( ' ', $candidate ) );
+            $shared_tokens = array_intersect( $target_tokens, $candidate_tokens );
+            $all_tokens = array_unique( array_merge( $target_tokens, $candidate_tokens ) );
+
+            if ( ! empty( $all_tokens ) ) {
+                $best_score = max(
+                    $best_score,
+                    (int) round( 70 * count( $shared_tokens ) / count( $all_tokens ) )
+                );
+            }
+        }
+
+        return $best_score;
+    }
+
+    private function get_tripletex_candidate_reason(
+        string $target_avdeling_name,
+        array $candidate_avdeling_names,
+        bool $has_non_avdeling_user,
+        int $score
+    ): string {
+        if ( $this->normalize_avdeling_name( $target_avdeling_name ) === '' && $has_non_avdeling_user ) {
+            return __( 'Matched an existing user without an avdeling.', 'lavendelhygiene' );
+        }
+
+        if ( $score > 0 && ! empty( $candidate_avdeling_names ) ) {
+            return sprintf(
+                __( 'Best avdeling match: %s.', 'lavendelhygiene' ),
+                implode( ', ', $candidate_avdeling_names )
+            );
+        }
+
+        return __( 'No avdeling-name match found; selected as the first candidate.', 'lavendelhygiene' );
+    }
+
+    private function normalize_avdeling_name( string $value ): string {
+        $value = strtolower( remove_accents( $value ) );
+        $value = preg_replace( '/[^a-z0-9]+/', ' ', $value );
+        return trim( (string) preg_replace( '/\s+/', ' ', $value ) );
     }
 
     /**

@@ -176,8 +176,21 @@ add_action('plugins_loaded', function () {
         if (!current_user_can('manage_woocommerce') && !current_user_can('promote_users') && !current_user_can('list_users')) {
             wp_die(__('No permission.', 'lh-ttx'));
         }
-        $user_id = isset($_GET['user_id']) ? absint($_GET['user_id']) : 0;
-        check_admin_referer('lavendelhygiene_create_tripletex_' . $user_id);
+        $user_id = isset($_POST['user_id']) ? absint($_POST['user_id']) : 0;
+        if (
+            !isset($_POST['create_nonce'])
+            || !wp_verify_nonce($_POST['create_nonce'], 'lavendelhygiene_create_tripletex_' . $user_id)
+        ) {
+            wp_die(__('Invalid request.', 'lh-ttx'));
+        }
+
+        $submitted_ttx_id = preg_replace('/\D+/', '', (string) wp_unslash($_POST['tripletex_customer_id'] ?? ''));
+        $saved_ttx_id = lh_ttx_get_linked_tripletex_id($user_id);
+
+        // Creation is allowed only when the form and the user record have no customer ID.
+        if ($submitted_ttx_id !== '' || $saved_ttx_id > 0) {
+            wp_die(__('Clear the Tripletex ID before creating a new customer.', 'lh-ttx'));
+        }
 
         $res = $services->customers()->create_and_link($user_id);
         if (is_wp_error($res)) {

@@ -104,6 +104,7 @@ class LavendelHygiene_AdminApplications {
                         <th><?php esc_html_e( 'Org.nr', 'lavendelhygiene' ); ?></th>
                         <th><?php esc_html_e( 'Avdeling', 'lavendelhygiene' ); ?></th>
                         <th><?php esc_html_e( 'Existing company', 'lavendelhygiene' ); ?></th>
+                        <th><?php esc_html_e( 'Tripletex candidates', 'lavendelhygiene' ); ?></th>
                         <th><?php esc_html_e( 'Tripletex ID', 'lavendelhygiene' ); ?></th>
                         <th><?php esc_html_e( 'Actions', 'lavendelhygiene' ); ?></th>
                     </tr>
@@ -123,7 +124,6 @@ class LavendelHygiene_AdminApplications {
                         $link_context = $this->get_company_link_context( (int) $u->ID, $svc );
                         $saved_ttx_id = (string) $link_context['saved_ttx_id'];
                         $suggested_ttx_id = (string) $link_context['suggested_ttx_id'];
-                        $has_company_conflict = (bool) $link_context['has_conflict'];
                         $can_approve = (bool) $link_context['can_approve'];
                         $can_create_tripletex = (bool) $link_context['can_create_tripletex'];
 
@@ -136,11 +136,7 @@ class LavendelHygiene_AdminApplications {
                             'lavendelhygiene_deny_' . $u->ID
                         );
                         $set_nonce = wp_create_nonce( 'lavendelhygiene_set_tripletex_id_' . $u->ID );
-                        // tripletex create calls Tripletex plugin
-                        $ttx_create_url = wp_nonce_url(
-                            admin_url( 'admin-post.php?action=lavendelhygiene_create_tripletex&user_id=' . $u->ID ),
-                            'lavendelhygiene_create_tripletex_' . $u->ID
-                        );
+                        $create_nonce = wp_create_nonce( 'lavendelhygiene_create_tripletex_' . $u->ID );
                         ?>
                         <tr data-user-id="<?php echo (int) $u->ID; ?>">
                             <td><?php echo esc_html( $u->user_login ); ?></td>
@@ -160,27 +156,7 @@ class LavendelHygiene_AdminApplications {
                             </td>
 
                             <td>
-                                <?php if ($has_company_conflict) : ?>
-
-                                    <strong style="color:#b32d2e;">
-                                        <?php esc_html_e('Tripletex conflict', 'lavendelhygiene'); ?>
-                                    </strong>
-
-                                    <?php if (!empty($link_context['conflicting_ttx_ids'])) : ?>
-                                        <br>
-                                        <small>
-                                            <?php
-                                            echo esc_html(
-                                                sprintf(
-                                                    __('IDs found: %s', 'lavendelhygiene'),
-                                                    implode(', ', $link_context['conflicting_ttx_ids'])
-                                                )
-                                            );
-                                            ?>
-                                        </small>
-                                    <?php endif; ?>
-
-                                <?php elseif ($link_context['has_other_users']) : ?>
+                                <?php if ($link_context['has_other_users']) : ?>
 
                                     <strong> <?php esc_html_e('Yes','lavendelhygiene'); ?> </strong>
 
@@ -199,13 +175,31 @@ class LavendelHygiene_AdminApplications {
                                 <?php endif; ?>
                             </td>
 
+                            <td>
+                                <?php if ( ! empty( $link_context['candidates'] ) ) : ?>
+                                    <?php foreach ( $link_context['candidates'] as $candidate ) : ?>
+                                        <div style="margin-bottom:5px;">
+                                            <strong><?php echo esc_html( $candidate['ttx_id'] ); ?></strong>
+                                            <?php if ( $candidate['ttx_id'] === $suggested_ttx_id ) : ?>
+                                                <small><?php esc_html_e( '(suggested)', 'lavendelhygiene' ); ?></small>
+                                            <?php endif; ?>
+                                            <?php if ( ! empty( $candidate['avdeling_names'] ) ) : ?>
+                                                <br><small><?php echo esc_html( implode( ', ', $candidate['avdeling_names'] ) ); ?></small>
+                                            <?php elseif ( ! empty( $candidate['has_non_avdeling_user'] ) ) : ?>
+                                                <br><small><?php esc_html_e( 'No avdeling', 'lavendelhygiene' ); ?></small>
+                                            <?php endif; ?>
+                                            <?php if ( count( $link_context['candidates'] ) > 1 ) : ?>
+                                                <br><small><?php echo esc_html( $candidate['reason'] ); ?></small>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php else : ?>
+                                    <?php esc_html_e( 'None', 'lavendelhygiene' ); ?>
+                                <?php endif; ?>
+                            </td>
 
                             <td>
-                                <?php if ($has_company_conflict) : ?>
-                                    <div style="color:#b32d2e;font-weight:600;">
-                                        <?php esc_html_e('Resolve the company Tripletex-ID conflict before linking this user.','lavendelhygiene'); ?>
-                                    </div>
-                                <?php elseif ($saved_ttx_id !== '') : ?>
+                                <?php if ($saved_ttx_id !== '') : ?>
                                     <!-- Already saved: locked on this page -->
                                     <input
                                         type="text"
@@ -221,39 +215,45 @@ class LavendelHygiene_AdminApplications {
                                         ); ?>
                                     </p>
 
-                                <?php elseif ($suggested_ttx_id !== '') : ?>
-                                    <!-- Suggested from another local user: may be saved, but not modified -->
+                                <?php else : ?>
                                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
                                         class="lavendelhygiene-ttx-form">
 
-                                        <input type="hidden" name="action" value="lavendelhygiene_set_tripletex_id">
                                         <input type="hidden" name="user_id" value="<?php echo (int) $u->ID; ?>">
                                         <input type="hidden" name="_wpnonce" value="<?php echo esc_attr($set_nonce); ?>">
+                                        <input type="hidden" name="create_nonce" value="<?php echo esc_attr($create_nonce); ?>">
 
-                                        <input type="text" name="tripletex_customer_id" value="<?php echo esc_attr($suggested_ttx_id); ?>"
-                                            readonly aria-readonly="true" style="width:140px;background:#fff8e5;">
+                                        <input
+                                            type="text"
+                                            class="lavendelhygiene-ttx-id-input"
+                                            name="tripletex_customer_id"
+                                            value="<?php echo esc_attr($suggested_ttx_id); ?>"
+                                            placeholder="e.g. 123456"
+                                            inputmode="numeric"
+                                            pattern="[0-9]*"
+                                            style="width:140px;"
+                                        >
 
-                                        <button type="submit" class="button"> <?php esc_html_e('Save ID', 'lavendelhygiene'); ?> </button>
+                                        <button type="submit" name="action" value="lavendelhygiene_set_tripletex_id" class="button"> <?php esc_html_e('Save ID', 'lavendelhygiene'); ?> </button>
+                                        <?php if ($can_create_tripletex) : ?>
+                                            <button
+                                                type="submit"
+                                                name="action"
+                                                value="lavendelhygiene_create_tripletex"
+                                                class="button button-secondary lavendelhygiene-create-tripletex"
+                                                <?php echo $suggested_ttx_id !== '' ? 'hidden' : ''; ?>
+                                            ><?php esc_html_e('Create in Tripletex', 'lavendelhygiene'); ?></button>
+                                        <?php endif; ?>
                                     </form>
 
-                                    <p class="description" style="margin-top:5px;color:#8a6116;">
-                                        <?php esc_html_e('This ID was found on another user with the same organisation number. Double-check the ID before saving.', 'lavendelhygiene'); ?>
-                                    </p>
-
-                                <?php else : ?>
-                                    <!-- No existing ID found: sales may enter one manually -->
-                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="lavendelhygiene-ttx-form">
-
-                                        <input type="hidden" name="action" value="lavendelhygiene_set_tripletex_id">
-                                        <input type="hidden" name="user_id" value="<?php echo (int) $u->ID; ?>">
-                                        <input type="hidden" name="_wpnonce" value="<?php echo esc_attr($set_nonce); ?>">
-
-                                        <input type="text" name="tripletex_customer_id" value="" placeholder="e.g. 123456"
-                                            inputmode="numeric" pattern="[0-9]+" required style="width:140px;">
-
-                                        <button type="submit" class="button"> <?php esc_html_e('Save ID', 'lavendelhygiene'); ?> </button>
-                                    </form>
-
+                                    <?php if ($suggested_ttx_id !== '') : ?>
+                                        <p class="description" style="margin-top:5px;color:#8a6116;">
+                                            <?php echo esc_html( $link_context['suggestion_reason'] ); ?>
+                                            <?php if ( $link_context['is_ambiguous'] ) : ?>
+                                                <?php esc_html_e( ' Several candidates have the same score.', 'lavendelhygiene' ); ?>
+                                            <?php endif; ?>
+                                        </p>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </td>
 
@@ -265,11 +265,7 @@ class LavendelHygiene_AdminApplications {
                                     <button type="button" class="button button-primary" disabled aria-disabled="true"> <?php esc_html_e('Approve', 'lavendelhygiene'); ?> </button>
 
                                     <p class="description" style="margin:5px 0 0;">
-                                        <?php if ($has_company_conflict) : ?>
-                                            <?php esc_html_e('Resolve the Tripletex-ID conflict before approval.','lavendelhygiene'); ?>
-                                        <?php else : ?>
-                                            <?php esc_html_e('Save the Tripletex ID before approval.', 'lavendelhygiene'); ?>
-                                        <?php endif; ?>
+                                        <?php esc_html_e('Save the Tripletex ID before approval.', 'lavendelhygiene'); ?>
                                     </p>
                                 <?php endif; ?>
 
@@ -281,11 +277,6 @@ class LavendelHygiene_AdminApplications {
 
                                 <a href="<?php echo esc_url(get_edit_user_link($u->ID)); ?>" class="button"> <?php esc_html_e('View', 'lavendelhygiene'); ?> </a>
 
-                                <?php if ($can_create_tripletex) : ?>
-                                    <a href="<?php echo esc_url($ttx_create_url); ?>" class="button button-secondary">
-                                        <?php esc_html_e('Create in Tripletex', 'lavendelhygiene'); ?> 
-                                    </a>
-                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -337,6 +328,23 @@ class LavendelHygiene_AdminApplications {
                 </table>
             <?php endif; ?>
         </div>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                document.querySelectorAll('.lavendelhygiene-ttx-form').forEach(function (form) {
+                    var input = form.querySelector('.lavendelhygiene-ttx-id-input');
+                    var createButton = form.querySelector('.lavendelhygiene-create-tripletex');
+                    if (!input || !createButton) return;
+
+                    // A visible ID is an existing or selected customer, never a create request.
+                    function updateCreateButton() {
+                        createButton.hidden = input.value.trim() !== '';
+                    }
+
+                    updateCreateButton();
+                    input.addEventListener('input', updateCreateButton);
+                });
+            });
+        </script>
         <?php
     }
 
@@ -356,13 +364,6 @@ class LavendelHygiene_AdminApplications {
 
         if ($ttx_id === '') {
             wp_safe_redirect(add_query_arg('approval_error', __('The user must have a saved Tripletex ID before approval.','lavendelhygiene'), $redirect_url));
-            exit;
-        }
-
-        $orgnr = $svc->get_user_orgnr($user_id);
-        $company_state = $svc->get_company_state_for_orgnr($orgnr);
-        if (!empty($company_state['has_conflict'])) {
-            wp_safe_redirect(add_query_arg('approval_error', __('Users with this organisation number are linked to conflicting Tripletex IDs.','lavendelhygiene'), $redirect_url) );
             exit;
         }
 
@@ -537,19 +538,9 @@ class LavendelHygiene_AdminApplications {
     private function get_company_link_context(int $user_id, LavendelHygiene_TripletexLinkingService $svc): array {
         $orgnr = $svc->get_user_orgnr($user_id);
         $saved_ttx_id = $svc->get_ttx_id($user_id);
-
-        // Include current user when checking a saved ID that conflicts with another user's ID.
-        $company_state = $svc->get_company_state_for_orgnr($orgnr);
-
-        // Exclude current user when looking for an ID to suggest from
+        $suggestion = $svc->get_tripletex_candidates_for_user($user_id);
+        $suggested_ttx_id = $saved_ttx_id === '' ? (string) $suggestion['suggested_ttx_id'] : '';
         $other_company_state = $svc->get_company_state_for_orgnr($orgnr, $user_id);
-
-        $has_conflict = (bool) ($company_state['has_conflict'] ?? false);
-        $suggested_ttx_id = '';
-
-        if (!$has_conflict && $saved_ttx_id === '') {
-            $suggested_ttx_id = (string) ($other_company_state['existing_ttx_id'] ?? '');
-        }
 
         $other_users = [];
         foreach ((array) ($other_company_state['user_ids'] ?? []) as $other_user_id) {
@@ -572,20 +563,16 @@ class LavendelHygiene_AdminApplications {
             'orgnr'                 => $orgnr,
             'saved_ttx_id'          => $saved_ttx_id,
             'suggested_ttx_id'      => $suggested_ttx_id,
-            'has_conflict'          => $has_conflict,
-            'conflicting_ttx_ids'   => array_values(
-                (array) ($company_state['ttx_ids'] ?? [])
-            ),
+            'suggestion_reason'     => (string) $suggestion['suggestion_reason'],
+            'is_ambiguous'          => (bool) $suggestion['is_ambiguous'],
+            'candidates'            => (array) $suggestion['candidates'],
             'has_other_users'       => !empty($other_users),
             'other_users'           => $other_users,
             'can_approve'           => (
                 $saved_ttx_id !== ''
-                && !$has_conflict
             ),
             'can_create_tripletex'  => (
                 $saved_ttx_id === ''
-                && $suggested_ttx_id === ''
-                && !$has_conflict
             ),
         ];
     }
