@@ -140,6 +140,23 @@ final class LH_Ttx_Webhooks {
             return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'product_load_failed'], 200);
         }
 
+        $excluded = get_post_meta($product->get_id(), LH_TTX_META_DO_NOT_SYNC, true) === 'yes';
+        if (!$excluded && $product->is_type('variation')) {
+            $excluded = get_post_meta($product->get_parent_id(), LH_TTX_META_DO_NOT_SYNC, true) === 'yes';
+        }
+
+        if ($excluded) {
+            LH_Ttx_Logger::info('Webhook product event ignored for excluded product', [
+                'event'          => $event,
+                'sku'            => $sku,
+                'ttx_product_id' => $ttx_product_id,
+                'product_id'     => $product->get_id(),
+                'subscriptionId' => $subscriptionId,
+            ]);
+
+            return new \WP_REST_Response(['ok' => true, 'mapped' => false, 'reason' => 'product_excluded'], 200);
+        }
+
         $existing_ttx_id = max(0, (int) $product->get_meta('_tripletex_product_id', true));
 
         if ($matched_by === 'sku' && $existing_ttx_id > 0 && $existing_ttx_id !== $ttx_product_id) {

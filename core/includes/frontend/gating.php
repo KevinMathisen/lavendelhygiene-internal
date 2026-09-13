@@ -55,6 +55,10 @@ class LavendelHygiene_Gating {
 
         $product_id = $product->get_id();
 
+        if ( defined( 'LH_TTX_META_DO_NOT_SYNC' ) && get_post_meta( $product_id, LH_TTX_META_DO_NOT_SYNC, true ) === 'yes' ) {
+            return true;
+        }
+
         $manual_catalog_only = (
             get_post_meta($product_id, LavendelHygiene_ProductMetaEditor::META_CATALOG_ONLY, true) === 'yes'
         );

@@ -13,6 +13,7 @@ if (!defined('LH_TTX_META_AVDELING_NAME'))              define('LH_TTX_META_AVDE
 if (!defined('LH_TTX_META_TTX_ORDER_ID'))               define('LH_TTX_META_TTX_ORDER_ID', '_tripletex_order_id');
 if (!defined('LH_TTX_META_TTX_STATUS'))                 define('LH_TTX_META_TTX_STATUS',   '_tripletex_status');
 if (!defined('LH_TTX_META_TTX_LAST_SYNC_AT'))           define('LH_TTX_META_TTX_LAST_SYNC_AT', '_tripletex_last_sync_at');
+if (!defined('LH_TTX_META_DO_NOT_SYNC'))                define('LH_TTX_META_DO_NOT_SYNC', '_lh_ttx_do_not_sync');
 
 /**
  * Get the linked Tripletex customer ID for a WordPress user.
@@ -36,6 +37,16 @@ function lh_ttx_get_linked_tripletex_id(int $user_id): int {
  */
 function get_tripletex_product_id_from_wc_product(\WC_Product $product) {
     if (!$product) { return new WP_Error('wc_product_invalid', __('Ugyldig WooCommerce-produkt.', 'lh-ttx')); }
+
+    // Explicitly excluded products must never trigger a cached or SKU-based lookup.
+    $excluded = get_post_meta($product->get_id(), LH_TTX_META_DO_NOT_SYNC, true) === 'yes';
+    if (!$excluded && $product->is_type('variation')) {
+        $excluded = get_post_meta($product->get_parent_id(), LH_TTX_META_DO_NOT_SYNC, true) === 'yes';
+    }
+
+    if ($excluded) {
+        return 0;
+    }
 
     // Never resolve Tripletex ID for variable (parent) products
     // Variable parents are not purchasable; only variations (and simple products) should sync

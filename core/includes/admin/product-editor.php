@@ -11,6 +11,7 @@ class LavendelHygiene_ProductMetaEditor {
 
     const META_CATALOG_ONLY = '_lavh_catalog_only';
     const META_INSTALLATION = '_lavh_installation_product';
+    const META_DO_NOT_SYNC  = '_lh_ttx_do_not_sync';
 
     // Temporary unavailable (parent + variation)
     const META_TEMP_UNAVAILABLE         = '_lavh_temp_unavailable';
@@ -53,6 +54,7 @@ class LavendelHygiene_ProductMetaEditor {
         $vol_flag = (string) get_post_meta( $product_id, self::META_VOLUME_NOTICE, true );
         $catalog_only = (get_post_meta($product_id, self::META_CATALOG_ONLY, true) === 'yes');
         $installation = (get_post_meta($product_id, self::META_INSTALLATION, true) === 'yes');
+        $do_not_sync  = (get_post_meta($product_id, self::META_DO_NOT_SYNC, true) === 'yes');
 
         $docs_raw = (string) get_post_meta( $product_id, self::META_DOCS_JSON, true );
         $ttx_pid  = (int) get_post_meta( $product_id, self::META_TRIPLETEX_PRODUCT_ID, true );
@@ -106,6 +108,16 @@ class LavendelHygiene_ProductMetaEditor {
                     'label'       => __( 'Installation product', 'lavendelhygiene' ),
                     'description' => __( 'Treats the product as catalog-only and displays the installation notice.', 'lavendelhygiene' ),
                     'value'       => $installation ? 'yes' : 'no',
+                    'cbvalue'     => 'yes',
+                ] );
+
+                woocommerce_wp_checkbox( [
+                    'id'          => self::META_DO_NOT_SYNC,
+                    'label'       => __( 'Do not sync with Tripletex', 'lavendelhygiene' ),
+                    'description' => $is_variable_parent
+                        ? __( 'Prevents Tripletex lookups and sync for this product and all its variations. The product is treated as catalog-only.', 'lavendelhygiene' )
+                        : __( 'Prevents Tripletex lookups and sync for this product. The product is treated as catalog-only.', 'lavendelhygiene' ),
+                    'value'       => $do_not_sync ? 'yes' : 'no',
                     'cbvalue'     => 'yes',
                 ] );
 
@@ -226,6 +238,9 @@ class LavendelHygiene_ProductMetaEditor {
         if ( $installation === 'yes' ) { $catalog_only = 'no'; }
         $product->update_meta_data( self::META_INSTALLATION, $installation);
         $product->update_meta_data( self::META_CATALOG_ONLY, $catalog_only );
+
+        $do_not_sync = isset( $_POST[ self::META_DO_NOT_SYNC ] ) ? 'yes' : 'no';
+        $product->update_meta_data( self::META_DO_NOT_SYNC, $do_not_sync );
 
         // temporary unavailable (parent)
         if ( ! $product->is_type( 'variable' ) ) {

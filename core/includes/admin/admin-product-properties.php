@@ -1,6 +1,8 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+if ( ! defined( 'LH_TTX_META_DO_NOT_SYNC' ) ) define( 'LH_TTX_META_DO_NOT_SYNC', '_lh_ttx_do_not_sync' );
+
 /* ---------- Admin: Manage LH product properties ---------- */
 
 class LavendelHygiene_AdminProductProperties {
@@ -57,6 +59,9 @@ class LavendelHygiene_AdminProductProperties {
                     case 'installation':
                         $this->render_editable_property_tab( 'installation' );
                         break;
+                    case 'do_not_sync':
+                        $this->render_editable_property_tab( 'do_not_sync' );
+                        break;
                     case 'temporary_unavailable':
                         $this->render_temporary_unavailable_tab();
                         break;
@@ -79,6 +84,7 @@ class LavendelHygiene_AdminProductProperties {
             'overview'              => __( 'Overview', 'lavendelhygiene' ),
             'catalog_only'          => __( 'Catalog only', 'lavendelhygiene' ),
             'installation'          => __( 'Installation', 'lavendelhygiene' ),
+            'do_not_sync'           => __( 'Do not sync with Tripletex', 'lavendelhygiene' ),
             'temporary_unavailable' => __( 'Temporarily unavailable', 'lavendelhygiene' ),
             'volume_notice'         => __( 'Volume pricing notice', 'lavendelhygiene' ),
         ];
@@ -95,6 +101,11 @@ class LavendelHygiene_AdminProductProperties {
                 'label'       => __( 'Installation products', 'lavendelhygiene' ),
                 'meta_key'    => LavendelHygiene_ProductMetaEditor::META_INSTALLATION,
                 'description' => __( 'Products that use the installation notice and are treated as catalog-only (hide price and cannot be purchased).', 'lavendelhygiene' ),
+            ],
+            'do_not_sync' => [
+                'label'       => __( 'Do not sync with Tripletex', 'lavendelhygiene' ),
+                'meta_key'    => defined( 'LH_TTX_META_DO_NOT_SYNC' ) ? LH_TTX_META_DO_NOT_SYNC : '_lh_ttx_do_not_sync',
+                'description' => __( 'Products that must never be looked up or synced with Tripletex. These products are automatically treated as catalog-only.', 'lavendelhygiene' ),
             ],
             'volume_notice' => [
                 'label'       => __( 'Volume pricing notice', 'lavendelhygiene' ),
@@ -114,16 +125,18 @@ class LavendelHygiene_AdminProductProperties {
     private function render_overview_tab() {
         $manual_catalog_only = $this->get_manual_catalog_only_ids();
         $installation        = $this->get_property_product_ids( 'installation' );
+        $do_not_sync         = $this->get_property_product_ids( 'do_not_sync' );
         $zero_price          = $this->get_zero_price_product_ids();
         $temp_products       = $this->get_temporary_unavailable_product_ids();
         $temp_variations     = $this->get_temporary_unavailable_variation_ids();
         $volume_notice       = $this->get_property_product_ids( 'volume_notice' );
-        $effective_catalog   = array_unique( array_merge( $manual_catalog_only, $installation, $zero_price ) );
+        $effective_catalog   = array_unique( array_merge( $manual_catalog_only, $installation, $do_not_sync, $zero_price ) );
 
         $rows = [
             [ __( 'Effective catalog-only products', 'lavendelhygiene' ), count( $effective_catalog ), 'catalog_only' ],
             [ __( 'Manually assigned catalog-only products', 'lavendelhygiene' ), count( $manual_catalog_only ), 'catalog_only' ],
             [ __( 'Installation products', 'lavendelhygiene' ), count( $installation ), 'installation' ],
+            [ __( 'Do not sync with Tripletex', 'lavendelhygiene' ), count( $do_not_sync ), 'do_not_sync' ],
             [ __( 'Zero-price products', 'lavendelhygiene' ), count( $zero_price ), 'catalog_only' ],
             [ __( 'Temporarily unavailable products', 'lavendelhygiene' ), count( $temp_products ), 'temporary_unavailable' ],
             [ __( 'Temporarily unavailable variations', 'lavendelhygiene' ), count( $temp_variations ), 'temporary_unavailable' ],
@@ -158,6 +171,7 @@ class LavendelHygiene_AdminProductProperties {
         $properties   = $this->editable_properties();
         $manual_ids   = $this->get_manual_catalog_only_ids();
         $install_ids  = $this->get_property_product_ids( 'installation' );
+        $no_sync_ids  = $this->get_property_product_ids( 'do_not_sync' );
         $zero_ids     = $this->get_zero_price_product_ids();
         ?>
         <h2><?php esc_html_e( 'Catalog only', 'lavendelhygiene' ); ?></h2>
@@ -168,6 +182,12 @@ class LavendelHygiene_AdminProductProperties {
         <section class="lavh-property-section">
             <h3><?php esc_html_e( 'Manually assigned products', 'lavendelhygiene' ); ?></h3>
             <?php $this->render_product_table( $manual_ids, 'catalog_only', true ); ?>
+        </section>
+
+        <section class="lavh-property-section">
+            <h3><?php esc_html_e( 'Catalog-only through Tripletex exclusion', 'lavendelhygiene' ); ?></h3>
+            <p><?php esc_html_e( 'These products are managed from the Do not sync with Tripletex tab.', 'lavendelhygiene' ); ?></p>
+            <?php $this->render_product_table( $no_sync_ids, 'do_not_sync', false, $this->tab_url( 'do_not_sync' ), __( 'Manage Tripletex exclusion', 'lavendelhygiene' ) ); ?>
         </section>
 
         <section class="lavh-property-section">

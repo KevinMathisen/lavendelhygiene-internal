@@ -40,7 +40,6 @@ final class LH_Ttx_Customers_Service {
         LH_Ttx_Logger::info('Created Tripletex customer and linked user', [
             'user_id'             => $user_id,
             'ttx_id'              => $created_id,
-            'contact_id'          => (int) $contact_id,
             'delivery_address_id' => (int) $delivery_id,
         ]);
 
