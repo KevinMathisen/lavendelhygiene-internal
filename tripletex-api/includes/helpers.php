@@ -56,15 +56,6 @@ function get_tripletex_product_id_from_wc_product(\WC_Product $product) {
         return 0;
     }
 
-    // ignore catalog-only products
-    $ignore_skus = [ '100', '108', '1000', '1001', '1002', '7382010019' ];
-    $sku = trim((string) $product->get_sku());
-    if ($sku !== '' && in_array($sku, $ignore_skus, true)) {
-        $product->update_meta_data('_tripletex_product_id', 0);
-        $product->save();
-        return 0;
-    }
-
     $wc_id = (int) $product->get_id();
 
     $stored = (int) $product->get_meta('_tripletex_product_id', true);
