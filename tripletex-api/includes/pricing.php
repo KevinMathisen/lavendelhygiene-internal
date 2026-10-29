@@ -138,7 +138,7 @@ final class LH_Ttx_Pricing_Hooks {
 
     /**
      * Render "you save" info on the single product page (under price).
-     * - Shows original price (raw regular) + discount percent + savings amount.
+     * - Shows original price and the effective discount percentage.
      * - For variable products, this runs on the parent product; the selected variation updates via WC UI.
      */
     public function render_savings_notice(): void {
@@ -153,13 +153,16 @@ final class LH_Ttx_Pricing_Hooks {
         if (is_wp_error($disc) || !$disc) return;
 
         $new_price = (float) ($disc['price'] ?? 0);
-        $pct       = (float) ($disc['pct'] ?? 0);
-        if ($new_price <= 0 || $pct <= 0) return;
+        if ($new_price <= 0) return;
 
         $regular = $this->get_raw_regular_price($product);
         if ($regular === null || $regular <= 0) return;
 
-        $save_amount = max(0, (float)$regular - (float)$new_price);
+        $pct = (float) ($disc['pct'] ?? 0);
+        if ($pct <= 0) {
+            $pct = max(0, (($regular - $new_price) / $regular) * 100);
+        }
+        if ($pct <= 0) return;
 
         echo '<div class="lh-ttx-savings" style="margin-bottom:20px;">';
         echo '<small>';

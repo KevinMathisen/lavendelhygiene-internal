@@ -21,7 +21,7 @@ final class LH_Ttx_Discounts_Service {
      *
      * Returns a map keyed by Tripletex product id:
      *  [
-     *    38048015 => ['price' => 3502.00, 'pct' => 15.0],
+     *    38048015 => ['price' => 3502.00, 'pct' => 15.0, 'mode' => 'percentage'],
      *    ...
      *  ]
      *
@@ -118,10 +118,24 @@ final class LH_Ttx_Discounts_Service {
             $price = isset($p['salesPriceWithDiscount']) ? (float) $p['salesPriceWithDiscount'] : null;
             $pct   = isset($p['percentage']) ? (float) $p['percentage'] : null;
 
-            // Require both
-            if ($price === null || $pct === null) continue;
+            // A positive percentage is authoritative when both values are present.
+            if ($pct !== null && $pct > 0) {
+                $map[$product_id] = [
+                    'price' => (float) $price,
+                    'pct'   => (float) $pct,
+                    'mode'  => 'percentage',
+                ];
+                continue;
+            }
 
-            $map[$product_id] = [ 'price' => (float) $price, 'pct' => (float) $pct, ];
+            // Sales users may set a customer-specific price without a percentage.
+            if ($price !== null && $price > 0) {
+                $map[$product_id] = [
+                    'price' => (float) $price,
+                    'pct'   => 0.0,
+                    'mode'  => 'fixed_price',
+                ];
+            }
         }
 
         return $map;
