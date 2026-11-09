@@ -14,7 +14,7 @@ final class LH_Ttx_Discounts_Service {
 
     /** Cache TTL in seconds (5 minutes) */
     private const CACHE_TTL = 300;
-    private const TRANSIENT_PREFIX = 'lh_ttx_disc_';
+    private const SNAPSHOT_OPTION_PREFIX = 'lh_ttx_disc_snapshot_';
 
     /**
      * Get discount map for a WP user (cached).
@@ -35,13 +35,12 @@ final class LH_Ttx_Discounts_Service {
         $ttx_customer_id = lh_ttx_get_linked_tripletex_id($user_id);
         if ($ttx_customer_id <= 0) { return []; } // not linked => no discounts 
 
-        $tkey = $this->transient_key($ttx_customer_id);
+        $snapshot = get_option( $this->snapshot_option( $ttx_customer_id ), null );
+        $cached_map = is_array( $snapshot['map'] ?? null ) ? $snapshot['map'] : null;
+        $fetched_at = (int) ( $snapshot['fetched_at'] ?? 0 );
 
-        if (!$force_refresh) {
-            $cached = get_transient($tkey);
-            if (is_array($cached)) {
-                return $cached;
-            }
+        if ( ! $force_refresh && $cached_map !== null && $fetched_at > 0 && ( time() - $fetched_at ) < self::CACHE_TTL ) {
+            return $cached_map;
         }
 
         // Fetch all discount policies for customer
@@ -50,10 +49,25 @@ final class LH_Ttx_Discounts_Service {
 
         $map = $this->build_discount_map($all);
 
-        // Cache even empty maps (reduce api calls)
-        set_transient($tkey, $map, self::CACHE_TTL);
+        // Keep the snapshot indefinitely; fetched_at controls freshness for users.
+        $this->save_snapshot( $ttx_customer_id, $map, time() );
 
         return $map;
+    }
+
+    /**
+    * Return the last locally stored discount map without making an API request.
+     *
+     * @return array|null Null when this customer's map is not cached.
+     */
+    public function get_cached_discount_map_for_user(int $user_id): ?array {
+        if ($user_id <= 0) return null;
+
+        $ttx_customer_id = lh_ttx_get_linked_tripletex_id($user_id);
+        if ($ttx_customer_id <= 0) return null;
+
+        $snapshot = get_option( $this->snapshot_option( $ttx_customer_id ), null );
+        return is_array( $snapshot['map'] ?? null ) ? $snapshot['map'] : null;
     }
 
     /**
@@ -90,14 +104,29 @@ final class LH_Ttx_Discounts_Service {
         $ttx_customer_id = lh_ttx_get_linked_tripletex_id($user_id);
         if ($ttx_customer_id <= 0) return;
 
-        delete_transient($this->transient_key($ttx_customer_id));
+        $snapshot = get_option( $this->snapshot_option( $ttx_customer_id ), null );
+        if ( ! is_array( $snapshot['map'] ?? null ) ) return;
+
+        $snapshot['fetched_at'] = 0;
+        update_option( $this->snapshot_option( $ttx_customer_id ), $snapshot, false );
     }
 
     /* ------------------------- Internals ------------------------- */
 
-    private function transient_key(int $ttx_customer_id): string {
-        // Keep it short and deterministic
-        return self::TRANSIENT_PREFIX . (string) $ttx_customer_id;
+    private function snapshot_option( int $ttx_customer_id ): string {
+        return self::SNAPSHOT_OPTION_PREFIX . (string) $ttx_customer_id;
+    }
+
+    private function save_snapshot( int $ttx_customer_id, array $map, int $fetched_at ): void {
+        $option = $this->snapshot_option( $ttx_customer_id );
+        $snapshot = [ 'map' => $map, 'fetched_at' => $fetched_at ];
+
+        if ( get_option( $option, null ) === null ) {
+            add_option( $option, $snapshot, '', false );
+            return;
+        }
+
+        update_option( $option, $snapshot, false );
     }
 
     /**

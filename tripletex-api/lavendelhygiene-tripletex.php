@@ -246,12 +246,11 @@ add_action('plugins_loaded', function () {
     });
 
     /* ---- cache invalidation --- */
-    add_action('wp_logout', function () use ($services) {
-        $uid = get_current_user_id();
-        if ($uid > 0) {
-            $services->discounts()->invalidate_user_discount_cache($uid);
+    add_action('wp_login', function ($user_login, $user) use ($services) {
+        if ($user instanceof WP_User) {
+            $services->discounts()->invalidate_user_discount_cache((int) $user->ID);
         }
-    });
+    }, 10, 2);
 
     add_action('lavendelhygiene_tripletex_linked', function ($user_id, $ttx_customer_id = 0, $actor_user_id = 0) use ($services) {
         $user_id = (int) $user_id;

@@ -15,6 +15,8 @@ require_once LH_CORE_PLUGIN_DIR . '/includes/ttx-linking-service.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/messages.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/frontend/registration.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/admin/admin-applications.php';
+require_once LH_CORE_PLUGIN_DIR . '/includes/admin/admin-discounts.php';
+require_once LH_CORE_PLUGIN_DIR . '/includes/admin/admin-user-administration.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/admin/admin-messages.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/admin/product-editor.php';
 require_once LH_CORE_PLUGIN_DIR . '/includes/admin/profile-fields.php';
@@ -50,6 +52,8 @@ final class LavendelHygiene_Core {
 
         new LavendelHygiene_Registration();
         new LavendelHygiene_AdminApplications();
+        new LavendelHygiene_AdminDiscounts();
+        new LavendelHygiene_AdminUserAdministration();
         new LavendelHygiene_AdminMessages();
         new LavendelHygiene_ProductMetaEditor();
         new LavendelHygiene_ProfileFields();
