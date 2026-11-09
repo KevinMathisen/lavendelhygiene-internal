@@ -654,8 +654,14 @@ class LavendelHygiene_Gating {
     }
 
 public function filter_variation_params( $params ) {
-    if ( ! is_user_logged_in() && is_array( $params ) ) {
-        $params['i18n_unavailable_text'] = __( 'Du er ikke logget inn, og kan derfor ikke legge varer i handlekurven. Registrer deg og få konto på Min Side.', 'lavendelhygiene' );
+    if ( ! is_array( $params ) || ! LavendelHygiene_Core::user_is_restricted() ) {
+        return $params;
+    }
+
+    if ( ! is_user_logged_in() ) {
+        $params['i18n_unavailable_text'] = __( 'Du er ikke logget inn, og kan derfor ikke legge varer i handlekurven. Registrer deg og få konto på Min Side!', 'lavendelhygiene' );
+    } else {
+        $params['i18n_unavailable_text'] = __( 'Konto må bli godkjent for å handle i nettbutikken, kontakt oss ved spørsmål!', 'lavendelhygiene' );
     }
 
     return $params;
