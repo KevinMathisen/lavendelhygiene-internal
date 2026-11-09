@@ -12,8 +12,8 @@ if (!class_exists('LH_Ttx_Logger')) {
 
 final class LH_Ttx_Discounts_Service {
 
-    /** Cache TTL in seconds (1 hour) */
-    private const CACHE_TTL = 3600;
+    /** Cache TTL in seconds (5 minutes) */
+    private const CACHE_TTL = 300;
     private const TRANSIENT_PREFIX = 'lh_ttx_disc_';
 
     /**
